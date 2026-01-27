@@ -34,6 +34,15 @@ class SessionService:
         return session
 
     async def get_by_token(self, token: str) -> Session | None:
+        # First check if token exists at all (without expiry check)
+        stmt_check = select(Session).where(Session.token == token)
+        result_check = await self.db.execute(stmt_check)
+        session_check = result_check.scalar_one_or_none()
+        if session_check:
+            print(f"[SESSION DEBUG] found session, expires_at={session_check.expires_at!r}, now={datetime.now(timezone.utc)!r}")
+        else:
+            print(f"[SESSION DEBUG] no session found for token")
+
         stmt = select(Session).where(
             Session.token == token,
             Session.expires_at > datetime.now(timezone.utc),
