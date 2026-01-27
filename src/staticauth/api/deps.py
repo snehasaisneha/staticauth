@@ -13,6 +13,7 @@ async def get_current_user(
     db: Annotated[AsyncSession, Depends(get_db)],
     session: Annotated[str | None, Cookie()] = None,
 ) -> User:
+    print(f"[AUTH DEBUG] session cookie received: {session[:20] if session else None}...")
     if not session:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -20,6 +21,7 @@ async def get_current_user(
         )
 
     token = verify_signed_token(session)
+    print(f"[AUTH DEBUG] token after verify: {token[:20] if token else None}...")
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
