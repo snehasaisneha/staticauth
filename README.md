@@ -48,7 +48,7 @@ This creates the SQLite database and applies all migrations.
 
 ```bash
 # Replace with your admin email
-sqlite3 staticauth.db "INSERT INTO users (id, email, status, is_admin, is_seeded) VALUES ('$(uuidgen)', 'admin@yourdomain.com', 'approved', 1, 1);"
+sqlite3 staticauth.db "INSERT INTO users (id, email, status, is_admin, is_seeded) VALUES ('$(uuidgen | tr -d '-')', 'admin@yourdomain.com', 'approved', 1, 1);"
 ```
 
 ### 5. Run the backend
@@ -148,7 +148,7 @@ cp .env.example .env
 
 # Run migrations and seed admin
 uv run all-migrations
-sqlite3 staticauth.db "INSERT INTO users (id, email, status, is_admin, is_seeded) VALUES ('$(uuidgen)', 'admin@yourdomain.com', 'approved', 1, 1);"
+sqlite3 staticauth.db "INSERT INTO users (id, email, status, is_admin, is_seeded) VALUES ('$(uuidgen | tr -d '-')', 'admin@yourdomain.com', 'approved', 1, 1);"
 
 # Build frontend
 cd frontend
@@ -212,7 +212,7 @@ sudo systemctl stop staticauth
 rm ~/deploy/staticauth/staticauth.db
 cd ~/deploy/staticauth
 uv run all-migrations
-sqlite3 staticauth.db "INSERT INTO users (id, email, status, is_admin, is_seeded) VALUES ('$(uuidgen)', 'admin@yourdomain.com', 'approved', 1, 1);"
+sqlite3 staticauth.db "INSERT INTO users (id, email, status, is_admin, is_seeded) VALUES ('$(uuidgen | tr -d '-')', 'admin@yourdomain.com', 'approved', 1, 1);"
 sudo systemctl start staticauth
 ```
 
