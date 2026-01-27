@@ -327,6 +327,7 @@ async def delete_me(
 
 
 _passkey_challenges: dict[str, bytes] = {}
+_passkey_registration_challenges: dict[str, bytes] = {}
 
 
 @router.post(
@@ -338,6 +339,8 @@ _passkey_challenges: dict[str, bytes] = {}
 async def passkey_register_options(current_user: CurrentUser, db: DbSession) -> dict[str, Any]:
     passkey_service = PasskeyService(db)
     options = await passkey_service.generate_registration_options(current_user)
+    # Store challenge at module level so it persists across requests
+    _passkey_registration_challenges[str(current_user.id)] = passkey_service._challenges.get(str(current_user.id))
     return options
 
 
@@ -356,9 +359,19 @@ async def passkey_register_verify(
     current_user: CurrentUser,
     db: DbSession,
 ) -> MessageResponse:
+    # Retrieve challenge from module-level storage
+    challenge = _passkey_registration_challenges.pop(str(current_user.id), None)
+    if not challenge:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Challenge expired or invalid. Please try again.",
+        )
+
     passkey_service = PasskeyService(db)
     credential_dict = request.credential.model_dump()
-    passkey = await passkey_service.verify_registration(current_user, credential_dict)
+    passkey = await passkey_service.verify_registration_with_challenge(
+        current_user, credential_dict, challenge
+    )
 
     if not passkey:
         raise HTTPException(

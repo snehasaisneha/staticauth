@@ -82,14 +82,20 @@ class PasskeyService:
     async def verify_registration(
         self, user: User, credential: dict[str, Any], name: str = "Passkey"
     ) -> PasskeyCredential | None:
+        """Legacy method - uses instance-level challenge storage (doesn't work across requests)."""
         challenge = self._challenges.pop(str(user.id), None)
         if not challenge:
             print(f"[PASSKEY REG] No challenge found for user {user.id}")
             print(f"[PASSKEY REG] Available challenges: {list(self._challenges.keys())}")
             return None
 
+        return await self.verify_registration_with_challenge(user, credential, challenge, name)
+
+    async def verify_registration_with_challenge(
+        self, user: User, credential: dict[str, Any], challenge: bytes, name: str = "Passkey"
+    ) -> PasskeyCredential | None:
+        """Verify registration with an externally-provided challenge."""
         try:
-            print(f"[PASSKEY REG] Verifying with rp_id={self.settings.webauthn_rp_id}, origin={self.settings.webauthn_origin}")
             verification = verify_registration_response(
                 credential=credential,
                 expected_challenge=challenge,
