@@ -27,6 +27,4 @@ class Session(Base):
 
     @property
     def is_expired(self) -> bool:
-        from datetime import timezone
-
-        return datetime.now(timezone.utc) > self.expires_at
+        return datetime.utcnow() > self.expires_at
