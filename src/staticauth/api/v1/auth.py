@@ -145,6 +145,7 @@ async def register_verify(
     )
     db.add(user)
     await db.flush()
+    await db.refresh(user)
 
     if auto_approve:
         session_service = SessionService(db)
