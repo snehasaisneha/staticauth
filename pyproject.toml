@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 staticauth = "staticauth.cli:serve"
+seed-admin = "staticauth.cli:seed_admin"
 all-migrations = "staticauth.db.migrate:run_all"
 migrations = "staticauth.db.migrate:run_single"
 
