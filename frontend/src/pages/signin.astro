@@ -1,0 +1,21 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SignInForm } from '@/components/auth/SignInForm';
+
+const appName = import.meta.env.PUBLIC_APP_NAME || 'StaticAuth';
+---
+
+<Layout title="Sign In">
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <Card class="w-full max-w-md">
+      <CardHeader class="text-center">
+        <CardTitle class="text-2xl">{appName}</CardTitle>
+        <CardDescription>Sign in to your account</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <SignInForm client:load />
+      </CardContent>
+    </Card>
+  </div>
+</Layout>

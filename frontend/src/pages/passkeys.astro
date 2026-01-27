@@ -1,0 +1,57 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { PasskeyManager } from '@/components/auth/PasskeyManager';
+
+const appName = import.meta.env.PUBLIC_APP_NAME || 'StaticAuth';
+---
+
+<Layout title="Manage Passkeys">
+  <div class="min-h-screen flex flex-col">
+    <header class="border-b">
+      <div class="container mx-auto px-4 h-16 flex items-center justify-between">
+        <a href="/" class="font-semibold text-lg">{appName}</a>
+        <nav class="flex items-center gap-4">
+          <a href="/" class="text-sm text-muted-foreground hover:text-foreground">Home</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="flex-1 container mx-auto px-4 py-8">
+      <div id="loading" class="text-center py-12">
+        <p class="text-muted-foreground">Loading...</p>
+      </div>
+
+      <div id="content" class="hidden max-w-2xl mx-auto">
+        <div class="mb-6">
+          <a href="/" class="text-sm text-muted-foreground hover:text-foreground">&larr; Back to Home</a>
+        </div>
+        <PasskeyManager client:load />
+      </div>
+    </main>
+  </div>
+</Layout>
+
+<script>
+  async function init() {
+    const loadingEl = document.getElementById('loading');
+    const contentEl = document.getElementById('content');
+
+    try {
+      const response = await fetch('/api/v1/auth/me', {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        window.location.href = '/signin';
+        return;
+      }
+
+      loadingEl?.classList.add('hidden');
+      contentEl?.classList.remove('hidden');
+    } catch {
+      window.location.href = '/signin';
+    }
+  }
+
+  init();
+</script>
