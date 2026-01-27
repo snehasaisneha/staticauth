@@ -1,3 +1,4 @@
+from staticauth.models.email_suppression import EmailSuppression, SuppressionReason
 from staticauth.models.otp import OTP, OTPPurpose
 from staticauth.models.passkey import PasskeyCredential
 from staticauth.models.session import Session
@@ -10,4 +11,6 @@ __all__ = [
     "OTP",
     "OTPPurpose",
     "PasskeyCredential",
+    "EmailSuppression",
+    "SuppressionReason",
 ]

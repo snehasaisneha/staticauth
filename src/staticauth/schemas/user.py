@@ -21,6 +21,7 @@ class UserRead(BaseModel):
     email: str = Field(..., description="User's email address")
     status: UserStatus = Field(..., description="User account status (pending, approved, rejected)")
     is_admin: bool = Field(..., description="Whether user has admin privileges")
+    is_seeded: bool = Field(..., description="Whether user is a seeded admin")
     created_at: datetime = Field(..., description="Account creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
@@ -32,6 +33,7 @@ class UserRead(BaseModel):
                 "email": "user@example.com",
                 "status": "approved",
                 "is_admin": False,
+                "is_seeded": False,
                 "created_at": "2024-01-01T00:00:00Z",
                 "updated_at": "2024-01-01T00:00:00Z",
             }

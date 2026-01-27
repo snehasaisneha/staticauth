@@ -1,4 +1,5 @@
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -6,8 +7,11 @@ from email.mime.text import MIMEText
 import aiosmtplib
 import boto3
 from botocore.exceptions import ClientError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from staticauth.config import Settings, get_settings
+from staticauth.models.email_suppression import EmailSuppression, SuppressionReason
 
 logger = logging.getLogger(__name__)
 
@@ -110,14 +114,49 @@ class SMTPProvider(EmailProvider):
 
 
 class EmailService:
-    def __init__(self, settings: Settings | None = None):
+    def __init__(self, settings: Settings | None = None, db: AsyncSession | None = None):
         self.settings = settings or get_settings()
+        self.db = db
         self.provider: EmailProvider
 
         if self.settings.email_provider == "ses":
             self.provider = SESProvider(self.settings)
         else:
             self.provider = SMTPProvider(self.settings)
+
+    async def is_suppressed(self, email: str) -> bool:
+        """Check if an email is on the suppression list."""
+        if not self.db:
+            return False
+        stmt = select(EmailSuppression).where(EmailSuppression.email == email.lower())
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def add_suppression(
+        self, email: str, reason: SuppressionReason, details: str | None = None
+    ) -> None:
+        """Add an email to the suppression list."""
+        if not self.db:
+            logger.warning(f"Cannot add suppression for {email}: no database session")
+            return
+        suppression = EmailSuppression(
+            id=uuid.uuid4(),
+            email=email.lower(),
+            reason=reason,
+            details=details,
+        )
+        self.db.add(suppression)
+        await self.db.flush()
+        logger.info(f"Added {email} to suppression list: {reason.value}")
+
+    async def _send_with_suppression_check(
+        self, to_email: str, subject: str, html_body: str, text_body: str | None = None
+    ) -> bool:
+        """Send email with suppression check."""
+        if await self.is_suppressed(to_email):
+            logger.warning(f"Email to {to_email} blocked: address is suppressed")
+            return False
+        return await self.provider.send_email(to_email, subject, html_body, text_body)
 
     async def send_otp(self, to_email: str, otp_code: str, purpose: str = "sign in") -> bool:
         subject = f"{self.settings.app_name} - Your verification code"
@@ -155,7 +194,7 @@ This code will expire in {self.settings.otp_expiry_minutes} minutes.
 
 If you didn't request this code, you can safely ignore this email.
         """
-        return await self.provider.send_email(to_email, subject, html_body, text_body)
+        return await self._send_with_suppression_check(to_email, subject, html_body, text_body)
 
     async def send_registration_pending(self, to_email: str) -> bool:
         subject = f"{self.settings.app_name} - Registration pending approval"
@@ -185,7 +224,7 @@ Your registration is pending approval.
 
 An administrator will review your request and you'll receive an email once your account is approved.
         """
-        return await self.provider.send_email(to_email, subject, html_body, text_body)
+        return await self._send_with_suppression_check(to_email, subject, html_body, text_body)
 
     async def send_registration_approved(self, to_email: str) -> bool:
         subject = f"{self.settings.app_name} - Registration approved"
@@ -217,4 +256,39 @@ Great news! Your registration has been approved.
 
 You can now sign in to your account at {self.settings.frontend_url}/signin
         """
-        return await self.provider.send_email(to_email, subject, html_body, text_body)
+        return await self._send_with_suppression_check(to_email, subject, html_body, text_body)
+
+    async def send_invitation(self, to_email: str, invited_by: str) -> bool:
+        """Send invitation email when admin creates a user."""
+        subject = f"You've been invited to {self.settings.app_name}"
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .button {{ display: inline-block; padding: 12px 24px; background: #1a1a1a; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>{self.settings.app_name}</h2>
+                <p>You've been invited to {self.settings.app_name} by <strong>{invited_by}</strong>.</p>
+                <p>Your account has been created and you can sign in using your email address.</p>
+                <a href="{self.settings.frontend_url}/signin" class="button">Sign In</a>
+            </div>
+        </body>
+        </html>
+        """
+        text_body = f"""
+{self.settings.app_name}
+
+You've been invited to {self.settings.app_name} by {invited_by}.
+
+Your account has been created and you can sign in using your email address.
+
+Sign in at: {self.settings.frontend_url}/signin
+        """
+        return await self._send_with_suppression_check(to_email, subject, html_body, text_body)

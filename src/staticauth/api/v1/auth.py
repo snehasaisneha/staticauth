@@ -134,13 +134,12 @@ async def register_verify(
             detail="Email already registered.",
         )
 
-    is_admin_email = settings.admin_email and email == settings.admin_email.lower()
-    auto_approve = settings.is_accepted_domain(email) or is_admin_email
+    auto_approve = settings.is_accepted_domain(email)
 
     user = User(
         email=email,
         status=UserStatus.APPROVED if auto_approve else UserStatus.PENDING,
-        is_admin=is_admin_email,
+        is_admin=False,
     )
     db.add(user)
     await db.flush()
@@ -294,6 +293,33 @@ async def signout(
 )
 async def get_me(current_user: CurrentUser) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@router.delete(
+    "/me",
+    response_model=MessageResponse,
+    responses={
+        200: {"description": "Account deleted"},
+        400: {"model": ErrorResponse, "description": "Cannot delete seeded admin"},
+    },
+    summary="Delete account",
+    description="Delete the current user's account and all associated data.",
+)
+async def delete_me(
+    response: Response,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> MessageResponse:
+    if current_user.is_seeded:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete seeded admin account.",
+        )
+
+    await db.delete(current_user)
+    await db.flush()
+    clear_session_cookie(response)
+    return MessageResponse(message="Account deleted successfully")
 
 
 _passkey_challenges: dict[str, bytes] = {}

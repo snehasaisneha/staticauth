@@ -25,6 +25,7 @@ class User(Base):
         nullable=False,
     )
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
+    is_seeded: Mapped[bool] = mapped_column(default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

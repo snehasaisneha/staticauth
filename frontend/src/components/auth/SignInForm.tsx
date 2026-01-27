@@ -68,7 +68,7 @@ export function SignInForm() {
 
   if (step === 'otp') {
     return (
-      <form onSubmit={handleOtpSubmit} className="space-y-6">
+      <form onSubmit={handleOtpSubmit} className="space-y-4 min-h-[320px]">
         <button
           type="button"
           onClick={handleBack}
@@ -78,17 +78,18 @@ export function SignInForm() {
           Back
         </button>
 
-        {message && (
-          <Alert variant="success">
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        )}
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        <div className="min-h-[56px]">
+          {message && (
+            <Alert variant="success">
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </div>
 
         <div className="space-y-2">
           <Label>Enter verification code</Label>
@@ -107,12 +108,14 @@ export function SignInForm() {
   }
 
   return (
-    <form onSubmit={handleEmailSubmit} className="space-y-6">
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+    <form onSubmit={handleEmailSubmit} className="space-y-4 min-h-[320px]">
+      <div className="min-h-[56px]">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+      </div>
 
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>

@@ -1,0 +1,10 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { AccountPage } from '@/components/auth/AccountPage';
+
+const appName = import.meta.env.PUBLIC_APP_NAME || 'StaticAuth';
+---
+
+<Layout title="Account">
+  <AccountPage client:load appName={appName} />
+</Layout>

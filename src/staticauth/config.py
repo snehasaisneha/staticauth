@@ -21,9 +21,6 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:///./staticauth.db"
 
-    # Admin Setup
-    admin_email: str | None = None
-
     # Email - Common
     email_provider: Literal["ses", "smtp"] = "ses"
     email_from_name: str = "StaticAuth"

@@ -5,6 +5,7 @@ export interface User {
   email: string;
   status: 'pending' | 'approved' | 'rejected';
   is_admin: boolean;
+  is_seeded: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -94,6 +95,11 @@ export const api = {
       }),
 
     me: () => request<User>('/auth/me'),
+
+    deleteAccount: () =>
+      request<MessageResponse>('/auth/me', {
+        method: 'DELETE',
+      }),
 
     passkeyRegisterOptions: () =>
       request<PublicKeyCredentialCreationOptions>('/auth/passkey/register/options', {

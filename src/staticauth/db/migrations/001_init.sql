@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
     is_admin INTEGER NOT NULL DEFAULT 0,
+    is_seeded INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -48,6 +49,16 @@ CREATE TABLE IF NOT EXISTS passkey_credentials (
 );
 CREATE INDEX IF NOT EXISTS ix_passkey_credentials_credential_id ON passkey_credentials(credential_id);
 CREATE INDEX IF NOT EXISTS ix_passkey_credentials_user_id ON passkey_credentials(user_id);
+
+-- Email suppression list (bounces and complaints)
+CREATE TABLE IF NOT EXISTS email_suppressions (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    reason TEXT NOT NULL CHECK (reason IN ('bounce', 'complaint')),
+    details TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS ix_email_suppressions_email ON email_suppressions(email);
 
 -- Migration tracking table
 CREATE TABLE IF NOT EXISTS _migrations (

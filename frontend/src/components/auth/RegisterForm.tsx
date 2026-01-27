@@ -75,7 +75,7 @@ export function RegisterForm() {
 
   if (step === 'success') {
     return (
-      <div className="space-y-6 text-center">
+      <div className="space-y-4 text-center min-h-[240px] flex flex-col items-center justify-center">
         <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
           <CheckCircle2 className="h-6 w-6 text-green-600" />
         </div>
@@ -91,7 +91,7 @@ export function RegisterForm() {
 
   if (step === 'pending') {
     return (
-      <div className="space-y-6 text-center">
+      <div className="space-y-4 text-center min-h-[240px] flex flex-col items-center justify-center">
         <div className="mx-auto w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
           <Clock className="h-6 w-6 text-yellow-600" />
         </div>
@@ -111,7 +111,7 @@ export function RegisterForm() {
 
   if (step === 'otp') {
     return (
-      <form onSubmit={handleOtpSubmit} className="space-y-6">
+      <form onSubmit={handleOtpSubmit} className="space-y-4 min-h-[240px]">
         <button
           type="button"
           onClick={handleBack}
@@ -121,17 +121,18 @@ export function RegisterForm() {
           Back
         </button>
 
-        {message && (
-          <Alert variant="success">
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        )}
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+        <div className="min-h-[56px]">
+          {message && (
+            <Alert variant="success">
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </div>
 
         <div className="space-y-2">
           <Label>Enter verification code</Label>
@@ -148,12 +149,14 @@ export function RegisterForm() {
   }
 
   return (
-    <form onSubmit={handleEmailSubmit} className="space-y-6">
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+    <form onSubmit={handleEmailSubmit} className="space-y-4 min-h-[240px]">
+      <div className="min-h-[56px]">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+      </div>
 
       <div className="space-y-2">
         <Label htmlFor="email">Email</Label>

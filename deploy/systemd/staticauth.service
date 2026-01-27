@@ -1,0 +1,16 @@
+[Unit]
+Description=StaticAuth API Server
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/deploy/staticauth
+ExecStart=/home/ubuntu/.local/bin/uv run staticauth
+Restart=always
+RestartSec=5
+Environment=PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target

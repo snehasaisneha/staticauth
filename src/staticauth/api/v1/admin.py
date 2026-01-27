@@ -112,6 +112,14 @@ async def get_user(user_id: uuid.UUID, admin: AdminUser, db: DbSession) -> UserR
 async def create_user(request: AdminCreateUser, admin: AdminUser, db: DbSession) -> UserRead:
     email = request.email.lower()
 
+    # Check if email is suppressed (bounced/complained)
+    email_service = EmailService(db=db)
+    if await email_service.is_suppressed(email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This email address is blocked due to previous delivery issues",
+        )
+
     stmt = select(User).where(User.email == email)
     result = await db.execute(stmt)
     existing = result.scalar_one_or_none()
@@ -129,6 +137,10 @@ async def create_user(request: AdminCreateUser, admin: AdminUser, db: DbSession)
     )
     db.add(user)
     await db.flush()
+
+    # Send invitation email
+    if request.auto_approve:
+        await email_service.send_invitation(email, admin.email)
 
     return UserRead.model_validate(user)
 
@@ -177,7 +189,7 @@ async def update_user(
     await db.flush()
 
     if was_pending and user.status == UserStatus.APPROVED:
-        email_service = EmailService()
+        email_service = EmailService(db=db)
         await email_service.send_registration_approved(user.email)
 
     return UserRead.model_validate(user)
@@ -214,7 +226,7 @@ async def approve_user(user_id: uuid.UUID, admin: AdminUser, db: DbSession) -> U
     user.status = UserStatus.APPROVED
     await db.flush()
 
-    email_service = EmailService()
+    email_service = EmailService(db=db)
     await email_service.send_registration_approved(user.email)
 
     return UserRead.model_validate(user)

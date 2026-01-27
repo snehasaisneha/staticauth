@@ -19,3 +19,16 @@ const appName = import.meta.env.PUBLIC_APP_NAME || 'StaticAuth';
     </Card>
   </div>
 </Layout>
+
+<script>
+  // Redirect to docs if already signed in
+  async function checkAuth() {
+    try {
+      const res = await fetch('/api/v1/auth/me', { credentials: 'include' });
+      if (res.ok) {
+        window.location.href = '/';
+      }
+    } catch {}
+  }
+  checkAuth();
+</script>
