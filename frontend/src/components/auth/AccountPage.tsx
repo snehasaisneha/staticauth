@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { api, ApiError, User } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
+import type { User } from '@/lib/api';
 import { PasskeyManager } from './PasskeyManager';
 import { DeleteAccount } from './DeleteAccount';
 import { Button } from '@/components/ui/button';
