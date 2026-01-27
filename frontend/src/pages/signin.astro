@@ -8,12 +8,12 @@ const appName = import.meta.env.PUBLIC_APP_NAME || 'StaticAuth';
 
 <Layout title="Sign In">
   <div class="min-h-screen flex items-center justify-center p-4">
-    <Card class="w-full max-w-md">
-      <CardHeader class="text-center">
+    <Card class="w-full max-w-lg">
+      <CardHeader class="text-center pb-2">
         <CardTitle class="text-2xl">{appName}</CardTitle>
         <CardDescription>Sign in to your account</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent class="pt-4 pb-8 px-8">
         <SignInForm client:load />
       </CardContent>
     </Card>
