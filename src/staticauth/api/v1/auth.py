@@ -37,6 +37,7 @@ COOKIE_MAX_AGE = settings.session_expiry_days * 24 * 60 * 60
 
 def set_session_cookie(response: Response, token: str) -> None:
     signed_token = create_signed_token(token)
+    print(f"[COOKIE DEBUG] domain={settings.cookie_domain!r}, secure={settings.app_url.startswith('https')}, app_url={settings.app_url}")
     response.set_cookie(
         key=COOKIE_NAME,
         value=signed_token,
