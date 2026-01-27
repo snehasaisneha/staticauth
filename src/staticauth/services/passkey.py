@@ -84,9 +84,12 @@ class PasskeyService:
     ) -> PasskeyCredential | None:
         challenge = self._challenges.pop(str(user.id), None)
         if not challenge:
+            print(f"[PASSKEY REG] No challenge found for user {user.id}")
+            print(f"[PASSKEY REG] Available challenges: {list(self._challenges.keys())}")
             return None
 
         try:
+            print(f"[PASSKEY REG] Verifying with rp_id={self.settings.webauthn_rp_id}, origin={self.settings.webauthn_origin}")
             verification = verify_registration_response(
                 credential=credential,
                 expected_challenge=challenge,
@@ -108,7 +111,8 @@ class PasskeyService:
             self.db.add(passkey)
             await self.db.flush()
             return passkey
-        except Exception:
+        except Exception as e:
+            print(f"[PASSKEY REG] verify_registration error: {e}")
             return None
 
     async def generate_authentication_options(
