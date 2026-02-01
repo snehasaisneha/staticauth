@@ -168,6 +168,8 @@ async def register_verify(
         for admin in admins:
             await email_service.send_pending_registration_notification(admin.email, email)
 
+        await db.commit()  # Commit pending user so they persist
+
         return AuthResponse(
             message="Registration pending approval",
             user=None,
