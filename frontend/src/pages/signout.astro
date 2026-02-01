@@ -1,0 +1,30 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Sign Out">
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="text-center">
+      <p class="text-muted-foreground" id="status">Signing out...</p>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  async function signout() {
+    const statusEl = document.getElementById('status');
+    try {
+      await fetch('/api/v1/auth/signout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // Ignore errors - cookie may already be cleared
+    }
+    if (statusEl) {
+      statusEl.textContent = 'Signed out. Redirecting...';
+    }
+    window.location.href = '/signin';
+  }
+  signout();
+</script>
