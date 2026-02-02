@@ -40,10 +40,7 @@ Or run manually:
 psql $DATABASE_URL -f src/gatekeeper/db/migrations/001_init.sql
 ```
 
-Note: PostgreSQL support for the migration runner requires `psycopg2`:
-```bash
-uv add psycopg2-binary
-```
+PostgreSQL support is included via `psycopg2-binary`.
 
 ## Fresh Install vs Upgrade
 

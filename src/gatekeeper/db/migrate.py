@@ -87,16 +87,9 @@ async def run_sqlite_migrations(db_path: str, target: int | None = None) -> None
 
 def run_postgres_migrations(conn_str: str, target: int | None = None) -> None:
     """Run migrations on PostgreSQL database."""
-    try:
-        import psycopg2
-    except ImportError:
-        print("PostgreSQL support requires psycopg2:")
-        print("  uv add psycopg2-binary")
-        print("\nAlternatively, run migrations manually:")
-        print(f"  psql $DATABASE_URL -f {MIGRATIONS_DIR}/001_init.sql")
-        return
+    import psycopg2
 
-    print(f"Running migrations on PostgreSQL")
+    print("Running migrations on PostgreSQL")
 
     conn = psycopg2.connect(conn_str)
     conn.autocommit = False
@@ -201,26 +194,22 @@ async def show_status() -> None:
                 status = "✓" if f.name in applied else "○"
                 print(f"  {status} {f.name}")
     else:
+        import psycopg2
+        conn = psycopg2.connect(conn_str)
+        cur = conn.cursor()
         try:
-            import psycopg2
-            conn = psycopg2.connect(conn_str)
-            cur = conn.cursor()
-            try:
-                cur.execute("SELECT name FROM _migrations")
-                applied = {row[0] for row in cur.fetchall()}
-            except psycopg2.ProgrammingError:
-                applied = set()
-            finally:
-                cur.close()
-                conn.close()
+            cur.execute("SELECT name FROM _migrations")
+            applied = {row[0] for row in cur.fetchall()}
+        except psycopg2.ProgrammingError:
+            applied = set()
+        finally:
+            cur.close()
+            conn.close()
 
-            print("Migration status:")
-            for f in migration_files:
-                status = "✓" if f.name in applied else "○"
-                print(f"  {status} {f.name}")
-        except ImportError:
-            print("PostgreSQL status check requires psycopg2:")
-            print("  uv add psycopg2-binary")
+        print("Migration status:")
+        for f in migration_files:
+            status = "✓" if f.name in applied else "○"
+            print(f"  {status} {f.name}")
 
 
 # Entry points for pyproject.toml scripts

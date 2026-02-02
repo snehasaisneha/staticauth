@@ -269,9 +269,8 @@ For PostgreSQL, change the database URL:
 DATABASE_URL=postgresql+asyncpg://user:pass@localhost/gatekeeper
 ```
 
-The migration runner supports both SQLite and PostgreSQL. For PostgreSQL, install `psycopg2-binary`:
+The migration runner supports both SQLite and PostgreSQL. Just change the `DATABASE_URL` and run migrations:
 ```bash
-uv add psycopg2-binary
 uv run all-migrations
 ```
 
