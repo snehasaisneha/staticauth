@@ -189,13 +189,65 @@ async def reset_sessions(
 
 
 @app.command("serve")
-def serve():
-    """Start the Gatekeeper API server."""
+def serve(
+    host: Annotated[
+        str | None,
+        typer.Option("--host", "-h", help="Host to bind to (default: from env or 0.0.0.0)"),
+    ] = None,
+    port: Annotated[
+        int | None,
+        typer.Option("--port", "-p", help="Port to bind to (default: from env or 8000)"),
+    ] = None,
+    reload: Annotated[
+        bool | None,
+        typer.Option("--reload/--no-reload", help="Enable auto-reload (default: from env or true)"),
+    ] = None,
+    workers: Annotated[
+        int | None,
+        typer.Option("--workers", "-w", help="Number of workers (default: 1, no reload)"),
+    ] = None,
+):
+    """Start the Gatekeeper API server.
+
+    Options can be set via CLI arguments or environment variables.
+    CLI arguments take precedence over environment variables.
+
+    Examples:
+
+        # Use defaults from .env
+        gk ops serve
+
+        # Override host and port
+        gk ops serve --host 127.0.0.1 --port 9000
+
+        # Production mode with multiple workers
+        gk ops serve --no-reload --workers 4
+    """
     import uvicorn
+
+    # CLI args take precedence over env vars
+    final_host = host if host is not None else settings.server_host
+    final_port = port if port is not None else settings.server_port
+    final_reload = reload if reload is not None else settings.server_reload
+
+    # Workers and reload are mutually exclusive in uvicorn
+    if workers is not None and workers > 1 and final_reload:
+        console.print(
+            "[yellow]Warning:[/yellow] --reload is incompatible with multiple workers. "
+            "Disabling reload."
+        )
+        final_reload = False
+
+    console.print(f"Starting server on [cyan]{final_host}:{final_port}[/cyan]")
+    if final_reload:
+        console.print("[dim]Auto-reload enabled (development mode)[/dim]")
+    elif workers and workers > 1:
+        console.print(f"[dim]Running with {workers} workers (production mode)[/dim]")
 
     uvicorn.run(
         "gatekeeper.main:app",
-        host=settings.server_host,
-        port=settings.server_port,
-        reload=settings.server_reload,
+        host=final_host,
+        port=final_port,
+        reload=final_reload,
+        workers=workers if not final_reload else None,
     )

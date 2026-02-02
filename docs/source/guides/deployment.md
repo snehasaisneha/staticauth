@@ -98,13 +98,25 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/gatekeeper
 Environment="PATH=/opt/gatekeeper/.venv/bin:/usr/local/bin:/usr/bin"
-ExecStart=/opt/gatekeeper/.venv/bin/uvicorn gatekeeper.main:app --host 127.0.0.1 --port 8001
+ExecStart=/opt/gatekeeper/.venv/bin/gk ops serve --host 127.0.0.1 --port 8001 --no-reload --workers 4
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+:::{tip}
+Adjust `--workers` based on your server's CPU cores. A good starting point is 2-4 workers per CPU core.
+
+You can also set server options via environment variables instead of CLI flags:
+
+```ini
+Environment="SERVER_HOST=127.0.0.1"
+Environment="SERVER_PORT=8001"
+Environment="SERVER_RELOAD=false"
+```
+:::
 
 Enable and start:
 

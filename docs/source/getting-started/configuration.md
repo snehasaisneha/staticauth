@@ -149,14 +149,48 @@ Users with emails from other domains go into a pending state and need admin appr
 
 ## Server settings
 
-### SERVER_HOST and SERVER_PORT
+These settings configure the Gatekeeper API server. They can be set via environment variables or overridden with CLI arguments when running `gk ops serve`.
 
-Where the server listens.
+### SERVER_HOST
+
+The address the server binds to.
 
 ```bash
-SERVER_HOST=0.0.0.0  # default
-SERVER_PORT=8000     # default
+SERVER_HOST=0.0.0.0  # default - listen on all interfaces
 ```
+
+Use `127.0.0.1` to only accept local connections (recommended when behind a reverse proxy).
+
+### SERVER_PORT
+
+The port the server listens on.
+
+```bash
+SERVER_PORT=8000  # default
+```
+
+### SERVER_RELOAD
+
+Enable auto-reload on file changes. Useful for development, should be disabled in production.
+
+```bash
+SERVER_RELOAD=true   # default - enabled for development
+SERVER_RELOAD=false  # recommended for production
+```
+
+### CLI overrides
+
+All server settings can be overridden via CLI arguments:
+
+```bash
+# Override host and port
+gk ops serve --host 127.0.0.1 --port 9000
+
+# Production mode with multiple workers
+gk ops serve --no-reload --workers 4
+```
+
+See [CLI Reference](../reference/cli.md) for all available options.
 
 ### OTP_EXPIRY_MINUTES
 
@@ -184,4 +218,5 @@ OTP_EXPIRY_MINUTES=10  # default
 | `WEBAUTHN_ORIGIN` | `http://localhost:8000` | Passkey origin |
 | `SERVER_HOST` | `0.0.0.0` | Server bind address |
 | `SERVER_PORT` | `8000` | Server port |
+| `SERVER_RELOAD` | `true` | Auto-reload on file changes |
 | `OTP_EXPIRY_MINUTES` | `10` | Login code validity |
