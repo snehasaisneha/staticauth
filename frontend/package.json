@@ -1,5 +1,5 @@
 {
-  "name": "staticauth-frontend",
+  "name": "gatekeeper-frontend",
   "type": "module",
   "version": "0.1.0",
   "scripts": {

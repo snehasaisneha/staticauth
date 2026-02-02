@@ -1,6 +1,6 @@
-# StaticAuth
+# Gatekeeper
 
-A static authentication service for engineering docs and internal tools. Supports email OTP and WebAuthn passkeys.
+A lightweight, self-hosted authentication gateway for internal tools. Supports email OTP and WebAuthn passkeys.
 
 ## Features
 
@@ -53,7 +53,7 @@ uv run seed-admin admin@yourdomain.com
 ### 5. Run the backend
 
 ```bash
-uv run staticauth
+uv run gatekeeper
 ```
 
 The API will be available at `http://localhost:8000`
@@ -76,12 +76,12 @@ The frontend will be available at `http://localhost:4321`
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `APP_NAME` | Application name (used in emails) | StaticAuth |
+| `APP_NAME` | Application name (used in emails) | Gatekeeper |
 | `SECRET_KEY` | Secret key for signing (min 32 chars) | - |
-| `DATABASE_URL` | Database connection string | sqlite+aiosqlite:///./staticauth.db |
+| `DATABASE_URL` | Database connection string | sqlite+aiosqlite:///./gatekeeper.db |
 | `ACCEPTED_DOMAINS` | Comma-separated domains for auto-approval | - |
 | `EMAIL_PROVIDER` | `ses` or `smtp` | ses |
-| `EMAIL_FROM_NAME` | Sender display name in emails | StaticAuth |
+| `EMAIL_FROM_NAME` | Sender display name in emails | Gatekeeper |
 | `WEBAUTHN_RP_ID` | WebAuthn relying party ID | localhost |
 | `WEBAUTHN_ORIGIN` | Frontend origin for WebAuthn | http://localhost:4321 |
 
@@ -91,7 +91,7 @@ See `.env.example` for all options.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PUBLIC_APP_NAME` | Application name shown in UI | StaticAuth |
+| `PUBLIC_APP_NAME` | Application name shown in UI | Gatekeeper |
 
 See `frontend/.env.example`.
 
@@ -109,7 +109,7 @@ See `frontend/.env.example`.
 │   certbot           │     │   ├─ :4321 → Frontend (static)      │
 │                     │     │   └─ :3000 → Docs (auth protected)  │
 └─────────────────────┘     │                                     │
-                            │   staticauth (systemd)              │
+                            │   gatekeeper (systemd)              │
                             │   docs (static files)               │
                             └─────────────────────────────────────┘
 ```
@@ -132,8 +132,8 @@ nvm use 22
 
 # Clone and setup
 cd ~/deploy
-git clone <repo-url> staticauth
-cd staticauth
+git clone <repo-url> gatekeeper
+cd gatekeeper
 
 # Setup environment
 cp .env.example .env
@@ -157,15 +157,15 @@ npm install
 npm run build
 
 # Setup systemd service
-sudo cp ~/deploy/staticauth/deploy/systemd/staticauth.service /etc/systemd/system/
+sudo cp ~/deploy/gatekeeper/deploy/systemd/gatekeeper.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable staticauth
-sudo systemctl start staticauth
+sudo systemctl enable gatekeeper
+sudo systemctl start gatekeeper
 
 # Setup nginx
-sudo cp ~/deploy/staticauth/deploy/nginx/docs-server.conf /etc/nginx/sites-available/staticauth
-# Edit the file: replace YOUR_DOMAIN, /path/to/staticauth, /path/to/docs/build
-sudo ln -s /etc/nginx/sites-available/staticauth /etc/nginx/sites-enabled/
+sudo cp ~/deploy/gatekeeper/deploy/nginx/docs-server.conf /etc/nginx/sites-available/gatekeeper
+# Edit the file: replace YOUR_DOMAIN, /path/to/gatekeeper, /path/to/docs/build
+sudo ln -s /etc/nginx/sites-available/gatekeeper /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 
@@ -182,7 +182,7 @@ sudo apt update
 sudo apt install -y nginx certbot python3-certbot-nginx
 
 # Setup nginx config
-sudo cp ~/deploy/staticauth/deploy/nginx/routing-server.conf /etc/nginx/sites-available/yourdomain.com
+sudo cp ~/deploy/gatekeeper/deploy/nginx/routing-server.conf /etc/nginx/sites-available/yourdomain.com
 # Edit the file: replace YOUR_DOMAIN, DOCS_SERVER_IP
 sudo ln -s /etc/nginx/sites-available/yourdomain.com /etc/nginx/sites-enabled/
 sudo nginx -t
@@ -207,12 +207,12 @@ sudo certbot --nginx -d yourdomain.com
 To completely reset the database:
 
 ```bash
-sudo systemctl stop staticauth
-rm ~/deploy/staticauth/staticauth.db
-cd ~/deploy/staticauth
+sudo systemctl stop gatekeeper
+rm ~/deploy/gatekeeper/gatekeeper.db
+cd ~/deploy/gatekeeper
 uv run all-migrations
 uv run seed-admin admin@yourdomain.com
-sudo systemctl start staticauth
+sudo systemctl start gatekeeper
 ```
 
 ## Development
@@ -236,7 +236,7 @@ View emails at `http://localhost:8025`
 
 ### Database
 
-SQLite is used by default. Migrations are simple SQL files in `src/staticauth/db/migrations/`.
+SQLite is used by default. Migrations are simple SQL files in `src/gatekeeper/db/migrations/`.
 
 #### Running migrations
 
@@ -250,7 +250,7 @@ uv run migrations --n 3
 
 #### Creating new migrations
 
-Add a new SQL file in `src/staticauth/db/migrations/` with the naming convention:
+Add a new SQL file in `src/gatekeeper/db/migrations/` with the naming convention:
 - `001_init.sql`
 - `002_add_feature.sql`
 - etc.
@@ -262,7 +262,7 @@ Migrations run in alphabetical order and are tracked in the `_migrations` table.
 For PostgreSQL, change the database URL:
 
 ```
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost/staticauth
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost/gatekeeper
 ```
 
 Note: The migration runner only supports SQLite. For PostgreSQL, run the SQL files manually with `psql`.
@@ -309,4 +309,6 @@ All endpoints require admin authentication.
 
 ## License
 
-MIT
+AGPL-3.0-or-later
+
+AGPL means you're free to use, modify, and deploy Gatekeeper internally with no obligations. The source-sharing requirement only applies if you offer a modified version as a public-facing service.

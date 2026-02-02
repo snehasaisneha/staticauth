@@ -1,10 +1,10 @@
 [project]
-name = "staticauth"
+name = "gatekeeper"
 version = "0.1.0"
 description = "Static authentication service for engineering docs"
 readme = "README.md"
 requires-python = ">=3.12"
-license = "MIT"
+license = "AGPL-3.0-or-later"
 dependencies = [
     "fastapi[standard]>=0.115.0,<1.0.0",
     "sqlalchemy[asyncio]>=2.0.0,<3.0.0",
@@ -20,17 +20,17 @@ dependencies = [
 
 
 [project.scripts]
-staticauth = "staticauth.cli:serve"
-seed-admin = "staticauth.cli:seed_admin"
-all-migrations = "staticauth.db.migrate:run_all"
-migrations = "staticauth.db.migrate:run_single"
+gatekeeper = "gatekeeper.cli:serve"
+seed-admin = "gatekeeper.cli:seed_admin"
+all-migrations = "gatekeeper.db.migrate:run_all"
+migrations = "gatekeeper.db.migrate:run_single"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/staticauth"]
+packages = ["src/gatekeeper"]
 
 [tool.ruff]
 line-length = 100
