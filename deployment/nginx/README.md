@@ -11,7 +11,7 @@
 │                    (public IP)                               │
 │                                                              │
 │  routing-gatekeeper.conf      routing-protected-app.conf    │
-│  auth.example.com             docs.example.com              │
+│  auth.example.com             app.example.com               │
 │         │                            │                       │
 │         │ proxy                      │ auth_request + proxy  │
 └─────────┼────────────────────────────┼───────────────────────┘
@@ -19,11 +19,10 @@
           ▼                            ▼
 ┌──────────────────┐         ┌──────────────────┐
 │ GATEKEEPER SERVER│         │    APP SERVER    │
-│ (10.0.0.10)      │         │   (10.0.0.20)    │
+│ (private IP)     │         │   (private IP)   │
 │                  │         │                  │
-│ gatekeeper-      │◄────────│                  │
-│ server.conf      │ validate│ app-server.conf  │
-│ :8000            │         │ :3000            │
+│ nginx:8000       │◄────────│                  │
+│ uvicorn:8001     │ validate│ app:8000         │
 └──────────────────┘         └──────────────────┘
 ```
 
@@ -31,83 +30,106 @@
 
 | File | Runs On | Purpose |
 |------|---------|---------|
-| `gatekeeper-server.conf` | Gatekeeper server | Serves frontend + proxies API |
-| `app-server.conf` | App server | Serves your app (template) |
-| `routing-gatekeeper.conf` | Routing server | Proxies to Gatekeeper (NO auth) |
-| `routing-protected-app.conf` | Routing server | Auth + proxy to app (template) |
+| `gatekeeper-server.conf` | Gatekeeper server | Serves frontend (nginx) + proxies API to uvicorn |
+| `app-server.conf` | App server | Optional - only if app needs nginx in front |
+| `routing-gatekeeper.conf` | Routing server | Proxies to Gatekeeper (NO auth - must be public) |
+| `routing-protected-app.conf` | Routing server | Auth validation + proxy to app (copy per app) |
 
 ## Setup
 
-### 1. Gatekeeper Server (10.0.0.10)
+### 1. Gatekeeper Server
 
 ```bash
-# Copy config
-sudo cp gatekeeper-server.conf /etc/nginx/sites-available/gatekeeper
+# Create config (edit the path to frontend/dist)
 sudo nano /etc/nginx/sites-available/gatekeeper
-# Edit: frontend_root, uvicorn port
 
-# Enable
+# Paste contents of gatekeeper-server.conf, then:
 sudo ln -s /etc/nginx/sites-available/gatekeeper /etc/nginx/sites-enabled/
+sudo rm /etc/nginx/sites-enabled/default  # remove default site
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### 2. App Server (10.0.0.20)
+**Important:** The config includes `absolute_redirect off` and `port_in_redirect off` to prevent nginx from leaking the internal port (8000) in redirects.
+
+### 2. Routing Server - Gatekeeper Route
 
 ```bash
-# Copy template
-sudo cp app-server.conf /etc/nginx/sites-available/myapp
-sudo nano /etc/nginx/sites-available/myapp
-# Edit: listen port, backend/root
-
-# Enable
-sudo ln -s /etc/nginx/sites-available/myapp /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-### 3. Routing Server
-
-```bash
-# Gatekeeper routing
-sudo cp routing-gatekeeper.conf /etc/nginx/sites-available/auth.example.com
 sudo nano /etc/nginx/sites-available/auth.example.com
-# Edit: server_name, gatekeeper server IP:port
+# Paste contents of routing-gatekeeper.conf
+# Edit: server_name, proxy_pass IP
 
-# Protected app routing
-sudo cp routing-protected-app.conf /etc/nginx/sites-available/docs.example.com
-sudo nano /etc/nginx/sites-available/docs.example.com
-# Edit: server_name, app_slug, server IPs, gatekeeper_url
-
-# Enable
 sudo ln -s /etc/nginx/sites-available/auth.example.com /etc/nginx/sites-enabled/
-sudo ln -s /etc/nginx/sites-available/docs.example.com /etc/nginx/sites-enabled/
-
-# Test (must pass before certbot)
 sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d auth.example.com
+```
 
-# SSL (after nginx -t passes)
-sudo certbot --nginx -d auth.example.com -d docs.example.com
+### 3. Routing Server - Protected App Route
+
+For each protected app:
+
+```bash
+sudo nano /etc/nginx/sites-available/app.example.com
+# Paste contents of routing-protected-app.conf
+# Edit these 5 values:
+#   - server_name (your app domain)
+#   - proxy_pass in /_gk/validate (Gatekeeper IP:8000)
+#   - X-GK-App header (app slug)
+#   - proxy_pass in location / (App server IP:port)
+#   - URLs in @login and @denied (Gatekeeper public URL + app slug)
+
+sudo ln -s /etc/nginx/sites-available/app.example.com /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d app.example.com
 ```
 
 ### 4. Register App in Gatekeeper
 
+Via CLI:
 ```bash
-uv run gk apps add --slug docs --name "Documentation"
-uv run gk apps grant --slug docs --email user@example.com
+uv run gk apps add --slug myapp --name "My App"
+uv run gk apps grant --slug myapp --email user@example.com
 ```
+
+Or via admin UI at `https://auth.example.com/admin`
 
 ## Auth Flow
 
-1. User visits `http://docs.example.com/page`
-2. Routing server: `auth_request` → `http://10.0.0.10:8000/api/v1/auth/validate`
-3. Gatekeeper checks session:
-   - **401** → redirect to `http://auth.example.com/signin?redirect=...`
-   - **403** → redirect to `http://auth.example.com/request-access?app=docs`
-   - **200** → proxy to `http://10.0.0.20:3000` with `X-Auth-User` header
+1. User visits `https://app.example.com/page`
+2. Routing nginx: `auth_request` → Gatekeeper `/api/v1/auth/validate`
+3. Gatekeeper checks session cookie:
+   - **401** (not logged in) → redirect to `/signin?redirect=...`
+   - **403** (no app access) → redirect to `/request-access?app=...`
+   - **200** (authorized) → proxy to app with `X-Auth-User` header
+
+## Troubleshooting
+
+### 502 Bad Gateway
+- App server not reachable from routing server
+- Check: Is the app running? `curl http://<app-ip>:<port>/` from routing server
+- Check: Is the app binding to `0.0.0.0`? Use `ss -tlnp | grep <port>` - should show `0.0.0.0`, not `127.0.0.1`
+
+### Redirect shows wrong port (e.g., :8000)
+- Missing `absolute_redirect off;` and `port_in_redirect off;` in gatekeeper-server.conf
+- Or browser cached old 301 redirect - test in incognito
+
+### After login, doesn't redirect back to app
+- Check that `@login` location uses `?redirect=$scheme://$host$request_uri`
+- Rebuild frontend if this was recently fixed
 
 ## Cookie Domain
 
-For SSO across subdomains, set in Gatekeeper's `.env`:
+For SSO across subdomains (`auth.example.com`, `app.example.com`), set in Gatekeeper `.env`:
 
 ```
 COOKIE_DOMAIN=.example.com
 ```
+
+## API-Only Apps
+
+Works for browser-based API calls. The flow:
+1. JS frontend calls `https://api.example.com/endpoint`
+2. Returns 401 → browser follows redirect to login
+3. User logs in → cookie set on `.example.com`
+4. JS retries API call → cookie sent → authorized
+
+**Won't work** for server-to-server or CLI calls (no browser to handle redirects).

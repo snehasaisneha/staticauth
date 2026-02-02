@@ -15,10 +15,10 @@
          ▼                           ▼
 ┌─────────────────┐        ┌─────────────────┐
 │ GATEKEEPER      │        │ APP SERVER      │
-│ (10.0.0.10)     │        │ (10.0.0.20)     │
+│ (private IP)    │        │ (private IP)    │
 │                 │        │                 │
-│ gatekeeper-     │        │ app-server.conf │
-│ server.conf     │        │                 │
+│ nginx:8000      │        │ your-app:8000   │
+│ uvicorn:8001    │        │                 │
 └─────────────────┘        └─────────────────┘
 ```
 
@@ -27,8 +27,8 @@
 ```
 deployment/
 ├── nginx/
-│   ├── gatekeeper-server.conf      # Gatekeeper server (internal)
-│   ├── app-server.conf             # App server template (internal)
+│   ├── gatekeeper-server.conf      # Gatekeeper: nginx + frontend
+│   ├── app-server.conf             # App server (optional template)
 │   ├── routing-gatekeeper.conf     # Routing → Gatekeeper (public)
 │   ├── routing-protected-app.conf  # Routing → App with auth (public)
 │   └── README.md
@@ -42,50 +42,133 @@ deployment/
 ### 1. Gatekeeper Server
 
 ```bash
-cd /opt/gatekeeper
-cp .env.example .env && nano .env
+# Clone and install
+sudo mkdir -p /deploy && sudo chown $USER:$USER /deploy
+git clone <your-repo> /deploy/gatekeeper
+cd /deploy/gatekeeper
+
+# Install uv if needed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc
+
+# Install dependencies and build frontend
 uv sync
 npm -C frontend install && npm -C frontend run build
-uv run gk ops migrate
+
+# Configure
+cp .env.example .env
+nano .env  # Set SECRET_KEY, DATABASE_URL, COOKIE_DOMAIN, email config, etc.
+
+# Initialize database
+mkdir -p data
+uv run python -m gatekeeper.db.migrate
+
+# Create admin user
 uv run gk users add --email admin@example.com --admin --seeded
 
-# Nginx
-sudo cp deployment/nginx/gatekeeper-server.conf /etc/nginx/sites-available/gatekeeper
+# Nginx (edit path in config first)
+sudo nano /etc/nginx/sites-available/gatekeeper
+# Paste deployment/nginx/gatekeeper-server.conf contents
 sudo ln -s /etc/nginx/sites-available/gatekeeper /etc/nginx/sites-enabled/
+sudo rm /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
 
-# Systemd
-sudo cp deployment/systemd/gatekeeper.service /etc/systemd/system/
+# Systemd (edit paths in config first)
+sudo nano /etc/systemd/system/gatekeeper.service
+# Paste deployment/systemd/gatekeeper.service contents
 sudo systemctl daemon-reload && sudo systemctl enable --now gatekeeper
+
+# Verify
+sudo systemctl status gatekeeper
+curl http://localhost:8000/health
 ```
 
 ### 2. Routing Server
 
 ```bash
-# Gatekeeper route
-sudo cp deployment/nginx/routing-gatekeeper.conf /etc/nginx/sites-available/auth.example.com
-sudo nano /etc/nginx/sites-available/auth.example.com  # Edit IPs
+# Gatekeeper route (public, no auth)
+sudo nano /etc/nginx/sites-available/auth.example.com
+# Paste routing-gatekeeper.conf, edit server_name and proxy_pass IP
 sudo ln -s /etc/nginx/sites-available/auth.example.com /etc/nginx/sites-enabled/
 
-# Protected app route
-sudo cp deployment/nginx/routing-protected-app.conf /etc/nginx/sites-available/docs.example.com
-sudo nano /etc/nginx/sites-available/docs.example.com  # Edit IPs, slug
-sudo ln -s /etc/nginx/sites-available/docs.example.com /etc/nginx/sites-enabled/
+# Protected app route (copy for each app)
+sudo nano /etc/nginx/sites-available/app.example.com
+# Paste routing-protected-app.conf, edit the 5 marked values
+sudo ln -s /etc/nginx/sites-available/app.example.com /etc/nginx/sites-enabled/
 
-# Test then SSL
+# Test and enable SSL
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d auth.example.com -d docs.example.com
+sudo certbot --nginx -d auth.example.com -d app.example.com
 ```
 
-### 3. Register App
+### 3. Register Apps
+
+Via CLI:
+```bash
+cd /deploy/gatekeeper
+uv run gk apps add --slug myapp --name "My App"
+uv run gk apps grant --slug myapp --email admin@example.com
+```
+
+Or via admin UI at `https://auth.example.com/admin`
+
+### 4. App Server
+
+Your app just needs to:
+1. Run on a port accessible from the routing server
+2. Bind to `0.0.0.0` (not `127.0.0.1`)
+3. Optionally read `X-Auth-User` header for user info
+
+No nginx needed on app server unless you want to serve static files.
+
+## Environment Variables
+
+Key `.env` settings:
 
 ```bash
-uv run gk apps add --slug docs --name "Documentation"
-uv run gk apps grant --slug docs --email admin@example.com
+# Required
+SECRET_KEY="<generate with: openssl rand -hex 32>"
+DATABASE_URL="sqlite+aiosqlite:///./data/gatekeeper.db"
+
+# URLs (update after SSL setup)
+APP_URL="https://auth.example.com"
+FRONTEND_URL="https://auth.example.com"
+
+# Cookie (for SSO across subdomains)
+COOKIE_DOMAIN=".example.com"
+
+# Server
+SERVER_PORT=8001
+SERVER_RELOAD=false
+
+# WebAuthn
+WEBAUTHN_RP_ID="auth.example.com"
+WEBAUTHN_ORIGIN="https://auth.example.com"
+
+# Email - SMTP (Gmail example)
+EMAIL_PROVIDER="smtp"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_USER="you@gmail.com"
+SMTP_PASSWORD="<app-password>"
+SMTP_FROM_EMAIL="you@gmail.com"
 ```
 
-## Cookie Domain
+## Troubleshooting
 
+### Service won't start
+```bash
+sudo journalctl -u gatekeeper -f --no-pager -n 50
 ```
-COOKIE_DOMAIN=.example.com
-```
+
+### 502 Bad Gateway on protected app
+- App not running or not binding to `0.0.0.0`
+- Test from routing server: `curl http://<app-private-ip>:<port>/`
+
+### Redirect shows :8000 port
+- Add `absolute_redirect off;` and `port_in_redirect off;` to gatekeeper nginx config
+- Test in incognito (browser caches 301 redirects)
+
+### Login doesn't redirect back to app
+- Ensure frontend was rebuilt after redirect fix
+- Check `@login` location has `?redirect=$scheme://$host$request_uri`
