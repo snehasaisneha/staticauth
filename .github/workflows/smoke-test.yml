@@ -1,0 +1,86 @@
+name: Smoke Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  pull_request:
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app-boot:
+    name: App Boot
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Verify CLI loads
+        run: uv run gatekeeper --help
+
+      - name: Start server and check health
+        run: |
+          uv run gatekeeper serve &
+          SERVER_PID=$!
+          sleep 5
+
+          # Check if server is responding
+          curl --fail --silent --show-error http://127.0.0.1:8000/health || exit 1
+
+          # Cleanup
+          kill $SERVER_PID
+        env:
+          GATEKEEPER_SECRET_KEY: test-secret-key-for-ci
+          GATEKEEPER_DATABASE_URL: sqlite+aiosqlite:///./test.db
+          GATEKEEPER_RP_ID: localhost
+          GATEKEEPER_RP_NAME: Test
+
+  cli-commands:
+    name: CLI Commands
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Verify CLI subcommands
+        run: |
+          uv run gatekeeper db --help
+          uv run gatekeeper user --help
+          uv run gatekeeper app --help
+        env:
+          GATEKEEPER_SECRET_KEY: test-secret-key-for-ci
+          GATEKEEPER_DATABASE_URL: sqlite+aiosqlite:///./test.db
+          GATEKEEPER_RP_ID: localhost
+          GATEKEEPER_RP_NAME: Test
