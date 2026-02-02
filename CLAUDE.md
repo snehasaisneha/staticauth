@@ -10,3 +10,9 @@
 - Quote any git paths containing brackets or parentheses (e.g., `src/app/[candidate]/**`) when staging or committing so the shell does not treat them as globs or subshells.
 - When running `git rebase`, avoid opening editors—export `GIT_EDITOR=:` and `GIT_SEQUENCE_EDITOR=:` (or pass `--no-edit`) so the default messages are used automatically.
 - Never amend commits unless you have explicit written approval in the task thread.
+
+## Before Pushing
+
+- **Always run `./scripts/ci-check.sh` before pushing.** This mirrors all CI checks locally: lint, tests, CLI smoke tests, and frontend build. Don't rely on just `ruff` and `pytest`—CI runs more than that.
+- The CLI entry point is `gk` with subcommands: `users`, `apps`, `ops`. There is no `db`, `user`, or `app` singular command.
+- Environment variables have NO prefix (e.g., `SECRET_KEY`, not `GATEKEEPER_SECRET_KEY`). Check `.env.example` for correct names.
