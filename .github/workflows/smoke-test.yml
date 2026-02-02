@@ -81,6 +81,6 @@ jobs:
 
       - name: Verify CLI subcommands
         run: |
-          uv run gk db --help
-          uv run gk user --help
-          uv run gk app --help
+          uv run gk users --help
+          uv run gk apps --help
+          uv run gk ops --help
