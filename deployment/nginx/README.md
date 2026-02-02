@@ -1,137 +1,161 @@
 # Nginx Configuration
 
-Two files, that's all you need:
+## Architecture Overview
+
+```
+Internet
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Nginx (SSL termination, routing)                           │
+│  - routing.conf: main server, certbot, subdomain routing    │
+└─────────────────────────────────────────────────────────────┘
+    │
+    ├─► auth.example.com (gatekeeper.conf)
+    │   └─ NO auth_request - publicly accessible
+    │   └─ Serves: frontend + API
+    │
+    └─► docs.example.com (protected-app.conf)
+        └─ auth_request to Gatekeeper
+        └─ 401 → redirect to login
+        └─ 403 → access denied
+        └─ 200 → proxy to app
+```
+
+## Files
 
 | File | Purpose |
 |------|---------|
-| `gatekeeper.conf` | Serves Gatekeeper itself (frontend + API) |
-| `protected-app.conf` | Template for apps protected by Gatekeeper |
+| `routing.conf` | Main routing server (SSL, certbot, include other configs) |
+| `gatekeeper.conf` | Gatekeeper frontend + API (NO auth) |
+| `protected-app.conf` | Template for protected apps (WITH auth) |
 
 ## Quick Start
 
-### 1. Set up Gatekeeper
+### 1. Set Up Routing Server
 
 ```bash
-# Copy and edit the config (change the variables at the top)
-sudo cp gatekeeper.conf /etc/nginx/sites-available/auth.example.com
-sudo nano /etc/nginx/sites-available/auth.example.com
+# Copy main routing config
+sudo cp routing.conf /etc/nginx/sites-available/example.com
+sudo nano /etc/nginx/sites-available/example.com
+# Edit: server_name, ssl_certificate paths, domain names
 
-# Enable it
-sudo ln -s /etc/nginx/sites-available/auth.example.com /etc/nginx/sites-enabled/
+# Enable
+sudo ln -s /etc/nginx/sites-available/example.com /etc/nginx/sites-enabled/
 
-# Get SSL certificate
-sudo certbot --nginx -d auth.example.com
+# Get wildcard SSL (or individual certs)
+sudo certbot certonly --nginx -d example.com -d "*.example.com"
+# Or individual: sudo certbot --nginx -d auth.example.com -d docs.example.com
 
-# Reload nginx
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### 2. Protect an App
+### 2. Configure Gatekeeper
 
 ```bash
-# Copy the template
-sudo cp protected-app.conf /etc/nginx/sites-available/docs.example.com
-sudo nano /etc/nginx/sites-available/docs.example.com
+# Copy gatekeeper config
+sudo cp gatekeeper.conf /etc/nginx/snippets/gatekeeper.conf
+sudo nano /etc/nginx/snippets/gatekeeper.conf
+# Edit: frontend_root path, backend port
 
-# Edit the configuration section at the top:
-# - app_slug: must match what you registered in Gatekeeper admin
-# - app_domain: the public domain for this app
-# - gatekeeper_url: where Gatekeeper is running
-# - app_backend: where your app is running
-
-# Enable it
-sudo ln -s /etc/nginx/sites-available/docs.example.com /etc/nginx/sites-enabled/
-sudo certbot --nginx -d docs.example.com
+# It's included by routing.conf, no need to enable separately
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### 3. Register the App in Gatekeeper
-
-Before the protected app works, register it:
+### 3. Add a Protected App
 
 ```bash
-uv run gk apps add --slug my-app --name "My App"
-uv run gk apps grant --slug my-app --email user@example.com
+# Copy template
+sudo cp protected-app.conf /etc/nginx/snippets/protected-docs.conf
+sudo nano /etc/nginx/snippets/protected-docs.conf
+# Edit: app_slug, backend address
+
+# Include it in routing.conf (see example in routing.conf)
+sudo nginx -t && sudo systemctl reload nginx
+
+# Register in Gatekeeper
+uv run gk apps add --slug docs --name "Documentation"
+uv run gk apps grant --slug docs --email admin@example.com
 ```
 
-Or use the admin panel: go to Apps tab → Add App.
+## Auth Flow Explained
 
-## Configuration Reference
-
-### gatekeeper.conf
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `gatekeeper_backend` | Gatekeeper server address | `127.0.0.1:8000` |
-| `gatekeeper_domain` | Public domain | `auth.example.com` |
-
-### protected-app.conf
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `app_slug` | App identifier in Gatekeeper | `docs`, `grafana` |
-| `app_domain` | Public domain for this app | `docs.example.com` |
-| `gatekeeper_auth` | Gatekeeper server address | `127.0.0.1:8000` |
-| `gatekeeper_url` | Public Gatekeeper URL | `https://auth.example.com` |
-| `app_backend` | Your app's backend | `127.0.0.1:3000` |
-
-## Static Files (Docs, Assets)
-
-For static file servers (Sphinx docs, MkDocs, etc.), replace the `app_backend` upstream with a root directive:
-
-```nginx
-# Instead of:
-upstream app_backend {
-    server 127.0.0.1:3000;
-}
-
-# Remove that and in location / use:
-location / {
-    auth_request /_gatekeeper/validate;
-    # ... auth_request_set lines stay the same ...
-
-    # Serve static files instead of proxying
-    root /var/www/docs;
-    index index.html;
-    try_files $uri $uri/ $uri.html =404;
-}
-```
-
-## Auth Caching (High Traffic)
-
-For apps with many requests (static doc sites with lots of assets), enable caching:
-
-1. Add to `/etc/nginx/nginx.conf` in the `http {}` block:
-   ```nginx
-   proxy_cache_path /tmp/gk_auth levels=1:2 keys_zone=gk_auth:1m max_size=10m inactive=5m;
-   ```
-
-2. In your app config, uncomment the cache lines in `/_gatekeeper/validate`:
-   ```nginx
-   proxy_cache gk_auth;
-   proxy_cache_key "$cookie_session";
-   proxy_cache_valid 200 5m;
-   proxy_cache_valid 401 403 10s;
-   ```
-
-This caches auth results per session cookie for 5 minutes, dramatically reducing backend load.
-
-## How It Works
+### Happy Path (Authenticated User with Access)
 
 ```
-User → nginx → auth_request to Gatekeeper → validates session + app access
-                                          ↓
-                              200 OK: proxy to app with X-Auth-User header
-                              401: redirect to /signin
-                              403: show "access denied"
+1. GET https://docs.example.com/api/data
+2. Nginx: auth_request → http://127.0.0.1:8000/api/v1/auth/validate
+   Headers: X-GK-App: docs, Cookie: session=xxx
+3. Gatekeeper: validates session, checks app access → 200 OK
+   Response headers: X-Auth-User: user@example.com
+4. Nginx: proxy_pass to app backend with X-Auth-User header
+5. App receives request with authenticated user info
+```
+
+### Unauthenticated User
+
+```
+1. GET https://docs.example.com/page
+2. Nginx: auth_request → Gatekeeper
+3. Gatekeeper: no valid session → 401 Unauthorized
+4. Nginx: error_page 401 → redirect to:
+   https://auth.example.com/signin?redirect=https://docs.example.com/page
+5. User logs in at Gatekeeper (cookie set on .example.com domain)
+6. Gatekeeper redirects to original URL
+7. Now auth_request returns 200 → user sees page
+```
+
+### Authenticated but No App Access
+
+```
+1. GET https://docs.example.com/page
+2. Nginx: auth_request → Gatekeeper
+3. Gatekeeper: valid session but no 'docs' access → 403 Forbidden
+4. Nginx: error_page 403 → redirect to:
+   https://auth.example.com/request-access?app=docs
+   (or show inline "Access Denied" message)
 ```
 
 ## Cookie Domain for SSO
 
-For SSO across subdomains (`auth.example.com`, `docs.example.com`, `grafana.example.com`), set in Gatekeeper's `.env`:
+For SSO across subdomains, set in Gatekeeper's `.env`:
 
-```
+```bash
 COOKIE_DOMAIN=.example.com
 ```
 
-This makes the session cookie work across all subdomains.
+This makes the session cookie work across `auth.example.com`, `docs.example.com`, etc.
+
+## Auth Caching (Optional)
+
+For high-traffic apps, cache auth responses:
+
+1. Add to `/etc/nginx/nginx.conf` in `http {}`:
+   ```nginx
+   proxy_cache_path /var/cache/nginx/gatekeeper
+                    levels=1:2
+                    keys_zone=gatekeeper_auth:1m
+                    max_size=10m
+                    inactive=5m;
+   ```
+
+2. Uncomment cache lines in `protected-app.conf`
+
+## Troubleshooting
+
+### "Too many redirects"
+- Check `COOKIE_DOMAIN` matches your domain structure
+- Ensure Gatekeeper itself (auth.example.com) has NO auth_request
+
+### "401 on login page"
+- Gatekeeper must be publicly accessible without auth_request
+- Check gatekeeper.conf doesn't have auth_request directives
+
+### "Cookie not sent"
+- Check browser dev tools → cookies
+- Verify `COOKIE_DOMAIN` is set correctly (needs leading dot: `.example.com`)
+- Ensure HTTPS is used (cookies may be Secure)
+
+### Auth validation slow
+- Enable auth caching (see above)
+- Check Gatekeeper logs for slow queries

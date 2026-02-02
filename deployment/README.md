@@ -1,17 +1,51 @@
 # Deployment
 
-Configuration files for deploying Gatekeeper in production.
+Production deployment configuration for Gatekeeper.
+
+## Architecture
+
+```
+                              Internet
+                                 │
+                                 ▼
+┌────────────────────────────────────────────────────────────────┐
+│                     Nginx (Port 80/443)                        │
+│                     - SSL termination                          │
+│                     - Routes by subdomain                      │
+└────────────────────────────────────────────────────────────────┘
+                                 │
+         ┌───────────────────────┴───────────────────────┐
+         │                                               │
+         ▼                                               ▼
+┌─────────────────────┐                   ┌─────────────────────┐
+│ auth.example.com    │                   │ docs.example.com    │
+│ (Gatekeeper)        │                   │ (Protected App)     │
+│                     │                   │                     │
+│ NO AUTH REQUIRED    │◄──────────────────│ auth_request ───────┤
+│ - Frontend (static) │   validate        │ validates session   │
+│ - API (FastAPI)     │   session         │ before proxying     │
+└─────────────────────┘                   └─────────────────────┘
+         │                                               │
+         ▼                                               ▼
+┌─────────────────────┐                   ┌─────────────────────┐
+│ localhost:8000      │                   │ localhost:3000      │
+│ Gatekeeper Backend  │                   │ Your App Backend    │
+└─────────────────────┘                   └─────────────────────┘
+```
+
+## Directory Structure
 
 ```
 deployment/
-├── nginx/           # Nginx configuration
-│   ├── gatekeeper.conf      # Serves Gatekeeper frontend + API
-│   ├── protected-app.conf   # Template for protected apps
+├── nginx/
+│   ├── routing.conf        # Main routing (SSL, HTTP→HTTPS, subdomains)
+│   ├── gatekeeper.conf     # Gatekeeper frontend + API (NO auth)
+│   ├── protected-app.conf  # Template for protected apps (WITH auth)
+│   └── README.md           # Detailed nginx documentation
+├── systemd/
+│   ├── gatekeeper.service  # Systemd service file
 │   └── README.md
-├── systemd/         # Systemd service
-│   ├── gatekeeper.service
-│   └── README.md
-└── README.md        # This file
+└── README.md               # This file
 ```
 
 ## Quick Deploy
@@ -19,66 +53,104 @@ deployment/
 ### 1. Install Gatekeeper
 
 ```bash
-# Clone and install
+# Clone
 git clone https://github.com/YOUR_USERNAME/gatekeeper.git /opt/gatekeeper
 cd /opt/gatekeeper
+
+# Configure
 cp .env.example .env
-nano .env  # Configure your settings
+nano .env
+# Set at minimum:
+#   SECRET_KEY=<random-32+-char-string>
+#   COOKIE_DOMAIN=.example.com
+#   FRONTEND_URL=https://auth.example.com
+#   APP_URL=https://auth.example.com
 
-# Install dependencies and run migrations
+# Install dependencies
 uv sync
-uv run all-migrations
 
-# Create first admin user
+# Build frontend
+npm -C frontend install
+npm -C frontend run build
+
+# Run migrations
+uv run gk ops migrate  # or: uv run all-migrations
+
+# Create admin user
 uv run gk users add --email admin@example.com --admin --seeded
 ```
 
-### 2. Set up Systemd
+### 2. Set Up Systemd Service
 
 ```bash
-# Edit service file (change paths)
+# Edit service file (update paths if needed)
 nano deployment/systemd/gatekeeper.service
 
-# Install and start
+# Install
 sudo cp deployment/systemd/gatekeeper.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now gatekeeper
 
-# Verify it's running
+# Verify
 sudo systemctl status gatekeeper
+journalctl -u gatekeeper -f  # View logs
 ```
 
-### 3. Set up Nginx
+### 3. Set Up Nginx
 
 ```bash
-# Gatekeeper itself
+# Copy configs
 sudo cp deployment/nginx/gatekeeper.conf /etc/nginx/sites-available/auth.example.com
-sudo nano /etc/nginx/sites-available/auth.example.com  # Edit variables at top
+sudo cp deployment/nginx/protected-app.conf /etc/nginx/sites-available/docs.example.com
+
+# Edit configs (update domains, paths, SSL certs)
+sudo nano /etc/nginx/sites-available/auth.example.com
+sudo nano /etc/nginx/sites-available/docs.example.com
+
+# Enable
 sudo ln -s /etc/nginx/sites-available/auth.example.com /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/docs.example.com /etc/nginx/sites-enabled/
 
-# Get SSL
-sudo certbot --nginx -d auth.example.com
+# Get SSL certificates
+sudo certbot --nginx -d auth.example.com -d docs.example.com
+# Or wildcard: sudo certbot certonly --manual -d "*.example.com" -d example.com
 
-# Reload
+# Test and reload
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### 4. Protect an App
+### 4. Register Your App in Gatekeeper
 
 ```bash
-# Copy template
-sudo cp deployment/nginx/protected-app.conf /etc/nginx/sites-available/docs.example.com
-sudo nano /etc/nginx/sites-available/docs.example.com  # Edit variables at top
-sudo ln -s /etc/nginx/sites-available/docs.example.com /etc/nginx/sites-enabled/
-sudo certbot --nginx -d docs.example.com
-sudo nginx -t && sudo systemctl reload nginx
-
-# Register in Gatekeeper
+# Add the app
 uv run gk apps add --slug docs --name "Documentation"
+
+# Grant access to users
 uv run gk apps grant --slug docs --email admin@example.com
 ```
 
+## Auth Flow
+
+1. User visits `https://docs.example.com/page`
+2. Nginx sends `auth_request` to Gatekeeper with `X-GK-App: docs` header
+3. Gatekeeper checks session cookie:
+   - **No session** → returns 401 → Nginx redirects to `https://auth.example.com/signin?redirect=...`
+   - **Session but no app access** → returns 403 → Nginx shows "Access Denied" or redirects to request access
+   - **Session with access** → returns 200 with `X-Auth-User` header → Nginx proxies to app
+4. User logs in at Gatekeeper, cookie set on `.example.com`
+5. Redirect back to original URL, now auth succeeds
+
+## Important: Cookie Domain
+
+For SSO across subdomains, set in `.env`:
+
+```bash
+COOKIE_DOMAIN=.example.com  # Note the leading dot
+```
+
+Without this, cookies won't be shared between `auth.example.com` and `docs.example.com`.
+
 ## Detailed Guides
 
-- [Nginx Configuration](nginx/README.md) - Full nginx setup, SSL, caching
+- [Nginx Configuration](nginx/README.md) - Full nginx setup, auth flow, caching
 - [Systemd Service](systemd/README.md) - Service management, logs, troubleshooting
