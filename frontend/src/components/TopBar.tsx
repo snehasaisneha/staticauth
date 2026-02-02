@@ -60,7 +60,7 @@ export function TopBar({ appName = 'Gatekeeper' }: TopBarProps) {
             </Button>
 
             {isOpen && (
-              <div className="absolute right-0 mt-2 w-56 rounded-md border bg-popover shadow-lg z-50">
+              <div className="absolute right-0 mt-2 w-56 rounded-md border bg-background shadow-lg z-50">
                 <div className="p-2">
                   <div className="px-2 py-1.5 text-sm text-muted-foreground">
                     Signed in as
