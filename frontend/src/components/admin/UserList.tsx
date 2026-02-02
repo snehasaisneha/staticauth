@@ -130,7 +130,7 @@ export function UserList({ initialUsers, onRefresh }: UserListProps) {
                 <td className="p-4 align-middle">{getStatusBadge(user.status)}</td>
                 <td className="p-4 align-middle">
                   {user.is_admin ? (
-                    <Badge>Admin</Badge>
+                    <Badge>Super Admin</Badge>
                   ) : (
                     <Badge variant="secondary">User</Badge>
                   )}
@@ -145,7 +145,7 @@ export function UserList({ initialUsers, onRefresh }: UserListProps) {
                       size="sm"
                       onClick={() => handleToggleAdmin(user)}
                       disabled={actionLoading === user.id}
-                      title={user.is_admin ? 'Remove admin' : 'Make admin'}
+                      title={user.is_admin ? 'Remove Super Admin' : 'Make Super Admin'}
                     >
                       {actionLoading === user.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

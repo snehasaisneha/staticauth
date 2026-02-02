@@ -86,7 +86,7 @@ function SettingsPageContent({ appName }: SettingsPageProps) {
                 <Label className="text-sm text-muted-foreground">Email</Label>
                 <p className="font-medium">{currentUser.email}</p>
                 {currentUser.is_admin && (
-                  <Badge variant="secondary" className="mt-1">Admin</Badge>
+                  <Badge variant="secondary" className="mt-1">Super Admin</Badge>
                 )}
               </div>
 

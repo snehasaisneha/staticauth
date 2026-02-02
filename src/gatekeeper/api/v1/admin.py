@@ -149,9 +149,10 @@ async def create_user(request: AdminCreateUser, admin: AdminUser, db: DbSession)
     await db.flush()
     await db.refresh(user)
 
-    # Send invitation email
-    if request.auto_approve:
-        await email_service.send_invitation(email, admin.email)
+    # Only send welcome email to super admins
+    # Regular users will only receive emails when granted access to specific apps
+    if request.auto_approve and request.is_admin:
+        await email_service.send_super_admin_welcome(email, admin.email)
 
     return UserRead.model_validate(user)
 

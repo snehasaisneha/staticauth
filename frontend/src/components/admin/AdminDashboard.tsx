@@ -1,11 +1,13 @@
 import * as React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { UserList } from './UserList';
 import { PendingRegistrations } from './PendingRegistrations';
 import { AppManagement } from './AppManagement';
 import { AddUserModal } from './AddUserModal';
-import { UserPlus, AppWindow, Users } from 'lucide-react';
+import { api } from '@/lib/api';
+import { UserPlus, AppWindow, Users, Clock } from 'lucide-react';
 
 type TabType = 'users' | 'apps';
 
@@ -13,6 +15,29 @@ export function AdminDashboard() {
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [activeTab, setActiveTab] = React.useState<TabType>('users');
   const [showAddUserModal, setShowAddUserModal] = React.useState(false);
+
+  // Summary stats
+  const [pendingCount, setPendingCount] = React.useState(0);
+  const [totalUsers, setTotalUsers] = React.useState(0);
+  const [totalApps, setTotalApps] = React.useState(0);
+
+  React.useEffect(() => {
+    async function fetchStats() {
+      try {
+        const [pendingRes, usersRes, appsRes] = await Promise.all([
+          api.admin.listPendingUsers(),
+          api.admin.listUsers(1, 1),
+          api.admin.listApps(),
+        ]);
+        setPendingCount(pendingRes.total);
+        setTotalUsers(usersRes.total);
+        setTotalApps(appsRes.total);
+      } catch {
+        // Silently fail
+      }
+    }
+    fetchStats();
+  }, [refreshKey]);
 
   const handleRefresh = () => {
     setRefreshKey((k) => k + 1);
@@ -25,47 +50,97 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-6" key={refreshKey}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Manage users and apps</p>
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold">Super Admin</h1>
+        <p className="text-muted-foreground text-sm">Manage users and apps across the platform</p>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab('users')}>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Users</p>
+                <p className="text-2xl font-bold">{totalUsers}</p>
+              </div>
+              <Users className="h-8 w-8 text-muted-foreground/50" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={`cursor-pointer hover:border-primary/50 transition-colors ${pendingCount > 0 ? 'border-orange-500/50' : ''}`}
+          onClick={() => setActiveTab('users')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Pending Approvals</p>
+                <p className="text-2xl font-bold">{pendingCount}</p>
+              </div>
+              <Clock className={`h-8 w-8 ${pendingCount > 0 ? 'text-orange-500' : 'text-muted-foreground/50'}`} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab('apps')}>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Apps</p>
+                <p className="text-2xl font-bold">{totalApps}</p>
+              </div>
+              <AppWindow className="h-8 w-8 text-muted-foreground/50" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex items-center justify-between border-b">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+              activeTab === 'users'
+                ? 'border-primary text-foreground font-medium'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            Users
+            {pendingCount > 0 && (
+              <Badge variant="secondary" className="ml-1 bg-orange-100 text-orange-700 text-xs">
+                {pendingCount}
+              </Badge>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('apps')}
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+              activeTab === 'apps'
+                ? 'border-primary text-foreground font-medium'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <AppWindow className="h-4 w-4" />
+            Apps
+          </button>
         </div>
+
         {activeTab === 'users' && (
-          <Button onClick={() => setShowAddUserModal(true)}>
+          <Button size="sm" onClick={() => setShowAddUserModal(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
             Add User
           </Button>
         )}
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex gap-1 border-b">
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-            activeTab === 'users'
-              ? 'border-primary text-primary font-medium'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Users className="h-4 w-4" />
-          Users
-        </button>
-        <button
-          onClick={() => setActiveTab('apps')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-            activeTab === 'apps'
-              ? 'border-primary text-primary font-medium'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <AppWindow className="h-4 w-4" />
-          Apps
-        </button>
-      </div>
-
+      {/* Tab Content */}
       {activeTab === 'users' && (
-        <>
+        <div className="space-y-6">
           {showAddUserModal && (
             <AddUserModal
               onClose={() => setShowAddUserModal(false)}
@@ -73,30 +148,19 @@ export function AdminDashboard() {
             />
           )}
 
-          <PendingRegistrations onAction={handleRefresh} />
+          {pendingCount > 0 && <PendingRegistrations onAction={handleRefresh} />}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>All Users</CardTitle>
-              <CardDescription>Manage all registered users</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <UserList onRefresh={handleRefresh} />
-            </CardContent>
-          </Card>
-        </>
+          <div>
+            <h2 className="text-lg font-semibold mb-4">All Users</h2>
+            <UserList onRefresh={handleRefresh} />
+          </div>
+        </div>
       )}
 
       {activeTab === 'apps' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>App Management</CardTitle>
-            <CardDescription>Manage apps and access permissions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AppManagement onRefresh={handleRefresh} />
-          </CardContent>
-        </Card>
+        <div>
+          <AppManagement onRefresh={handleRefresh} />
+        </div>
       )}
     </div>
   );

@@ -298,9 +298,9 @@ Please review this request in the admin panel: {admin_url}
         """
         return await self._send_with_suppression_check(admin_email, subject, html_body, text_body)
 
-    async def send_invitation(self, to_email: str, invited_by: str) -> bool:
-        """Send invitation email when admin creates a user."""
-        subject = f"You've been invited to {self.settings.app_name}"
+    async def send_super_admin_welcome(self, to_email: str, invited_by: str) -> bool:
+        """Send welcome email when a super admin account is created."""
+        subject = f"You're now a Super Admin on {self.settings.app_name}"
         html_body = f"""
         <!DOCTYPE html>
         <html>
@@ -310,13 +310,32 @@ Please review this request in the admin panel: {admin_url}
                 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
                 .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
                 .button {{ display: inline-block; padding: 12px 24px; background: #1a1a1a; color: #ffffff !important; text-decoration: none; border-radius: 6px; margin-top: 20px; }}
+                .info-box {{ background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 16px 0; }}
+                .info-box h4 {{ margin: 0 0 8px 0; }}
+                .info-box ul {{ margin: 8px 0 0 0; padding-left: 20px; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <h2>{self.settings.app_name}</h2>
-                <p>You've been invited to {self.settings.app_name} by <strong>{invited_by}</strong>.</p>
-                <p>Your account has been created and you can sign in using your email address.</p>
+                <p>You've been added as a <strong>Super Admin</strong> by {invited_by}.</p>
+
+                <div class="info-box">
+                    <h4>What is {self.settings.app_name}?</h4>
+                    <p>{self.settings.app_name} is a centralized authentication platform that manages access to multiple applications.</p>
+                </div>
+
+                <div class="info-box">
+                    <h4>As a Super Admin, you can:</h4>
+                    <ul>
+                        <li>Create and manage user accounts</li>
+                        <li>Create and configure applications</li>
+                        <li>Grant or revoke user access to apps</li>
+                        <li>Review access requests</li>
+                    </ul>
+                </div>
+
+                <p>Sign in with your email address to get started.</p>
                 <a href="{self.settings.frontend_url}/signin" class="button">Sign In</a>
             </div>
         </body>
@@ -325,11 +344,18 @@ Please review this request in the admin panel: {admin_url}
         text_body = f"""
 {self.settings.app_name}
 
-You've been invited to {self.settings.app_name} by {invited_by}.
+You've been added as a Super Admin by {invited_by}.
 
-Your account has been created and you can sign in using your email address.
+What is {self.settings.app_name}?
+{self.settings.app_name} is a centralized authentication platform that manages access to multiple applications.
 
-Sign in at: {self.settings.frontend_url}/signin
+As a Super Admin, you can:
+- Create and manage user accounts
+- Create and configure applications
+- Grant or revoke user access to apps
+- Review access requests
+
+Sign in with your email address to get started: {self.settings.frontend_url}/signin
         """
         return await self._send_with_suppression_check(to_email, subject, html_body, text_body)
 

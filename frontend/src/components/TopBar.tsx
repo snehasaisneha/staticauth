@@ -89,7 +89,7 @@ export function TopBar({ appName = 'Gatekeeper' }: TopBarProps) {
                       onClick={() => setIsOpen(false)}
                     >
                       <Shield className="h-4 w-4" />
-                      Admin
+                      Super Admin
                     </a>
                   )}
                 </div>

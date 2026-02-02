@@ -125,7 +125,7 @@ export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
                 className="h-4 w-4"
                 disabled={isSubmitting}
               />
-              <Label htmlFor="is-admin">Make admin</Label>
+              <Label htmlFor="is-admin">Make Super Admin (can manage all users and apps)</Label>
             </div>
 
             <div className="space-y-2">

@@ -18,6 +18,7 @@ import {
   Check,
   X,
   AppWindow,
+  Settings,
 } from 'lucide-react';
 
 interface AppManagementProps {
@@ -44,6 +45,14 @@ export function AppManagement({ onRefresh }: AppManagementProps) {
   const [appDetail, setAppDetail] = React.useState<AppDetail | null>(null);
   const [accessRequests, setAccessRequests] = React.useState<AccessRequest[]>([]);
   const [isLoadingDetail, setIsLoadingDetail] = React.useState(false);
+
+  // Edit app form
+  const [editName, setEditName] = React.useState('');
+  const [editDescription, setEditDescription] = React.useState('');
+  const [editAppUrl, setEditAppUrl] = React.useState('');
+  const [editIsPublic, setEditIsPublic] = React.useState(false);
+  const [isSavingApp, setIsSavingApp] = React.useState(false);
+  const [hasAppChanges, setHasAppChanges] = React.useState(false);
 
   // Grant access form
   const [grantEmail, setGrantEmail] = React.useState('');
@@ -83,6 +92,12 @@ export function AppManagement({ onRefresh }: AppManagementProps) {
       ]);
       setAppDetail(detail);
       setAccessRequests(requests);
+      // Populate edit fields
+      setEditName(detail.name);
+      setEditDescription(detail.description || '');
+      setEditAppUrl(detail.app_url || '');
+      setEditIsPublic(detail.is_public);
+      setHasAppChanges(false);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -91,6 +106,42 @@ export function AppManagement({ onRefresh }: AppManagementProps) {
       setIsLoadingDetail(false);
     }
   };
+
+  const handleSaveAppChanges = async () => {
+    if (!expandedApp || !appDetail) return;
+    setIsSavingApp(true);
+    setError(null);
+
+    try {
+      const updated = await api.admin.updateApp(expandedApp, {
+        name: editName !== appDetail.name ? editName : undefined,
+        description: editDescription !== (appDetail.description || '') ? editDescription : undefined,
+        app_url: editAppUrl !== (appDetail.app_url || '') ? editAppUrl : undefined,
+        is_public: editIsPublic !== appDetail.is_public ? editIsPublic : undefined,
+      });
+      // Update local state
+      setAppDetail({ ...appDetail, ...updated });
+      setHasAppChanges(false);
+      await loadApps(); // Refresh app list
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      }
+    } finally {
+      setIsSavingApp(false);
+    }
+  };
+
+  // Track changes to edit fields
+  React.useEffect(() => {
+    if (!appDetail) return;
+    const changed =
+      editName !== appDetail.name ||
+      editDescription !== (appDetail.description || '') ||
+      editAppUrl !== (appDetail.app_url || '') ||
+      editIsPublic !== appDetail.is_public;
+    setHasAppChanges(changed);
+  }, [editName, editDescription, editAppUrl, editIsPublic, appDetail]);
 
   const handleToggleExpand = async (slug: string) => {
     if (expandedApp === slug) {
@@ -393,7 +444,69 @@ export function AppManagement({ onRefresh }: AppManagementProps) {
                       <Loader2 className="h-6 w-6 animate-spin" />
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
+                      {/* App Settings */}
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm flex items-center gap-2">
+                          <Settings className="h-4 w-4" />
+                          App Settings
+                        </h4>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor={`edit-name-${app.slug}`}>Display Name</Label>
+                            <Input
+                              id={`edit-name-${app.slug}`}
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              placeholder="App name"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`edit-url-${app.slug}`}>App URL</Label>
+                            <Input
+                              id={`edit-url-${app.slug}`}
+                              type="url"
+                              value={editAppUrl}
+                              onChange={(e) => setEditAppUrl(e.target.value)}
+                              placeholder="https://myapp.example.com"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`edit-desc-${app.slug}`}>Description</Label>
+                          <Input
+                            id={`edit-desc-${app.slug}`}
+                            value={editDescription}
+                            onChange={(e) => setEditDescription(e.target.value)}
+                            placeholder="A brief description of your app"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`edit-public-${app.slug}`}
+                              checked={editIsPublic}
+                              onChange={(e) => setEditIsPublic(e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            <Label htmlFor={`edit-public-${app.slug}`}>
+                              Public (users can discover and request access)
+                            </Label>
+                          </div>
+                          {hasAppChanges && (
+                            <Button
+                              size="sm"
+                              onClick={handleSaveAppChanges}
+                              disabled={isSavingApp}
+                            >
+                              {isSavingApp && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                              Save Changes
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
                       {/* Pending Access Requests */}
                       {accessRequests.length > 0 && (
                         <div>
