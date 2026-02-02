@@ -38,7 +38,16 @@ export interface App {
   id: string;
   slug: string;
   name: string;
+  is_public: boolean;
+  description: string | null;
+  app_url: string | null;
   created_at: string;
+}
+
+export interface AppPublic {
+  slug: string;
+  name: string;
+  description: string | null;
 }
 
 export interface AppList {
@@ -60,6 +69,8 @@ export interface AppDetail extends App {
 export interface UserAppAccess {
   app_slug: string;
   app_name: string;
+  app_description: string | null;
+  app_url: string | null;
   role: string | null;
   granted_at: string;
 }
@@ -154,6 +165,8 @@ export const api = {
 
     myApps: () => request<UserAppAccess[]>('/auth/me/apps'),
 
+    publicApps: () => request<AppPublic[]>('/auth/apps/public'),
+
     requestAppAccess: (slug: string, message?: string) =>
       request<MessageResponse>(`/auth/me/apps/${slug}/request`, {
         method: 'POST',
@@ -233,10 +246,16 @@ export const api = {
     // App management
     listApps: () => request<AppList>('/admin/apps'),
 
-    createApp: (slug: string, name: string) =>
+    createApp: (data: { slug: string; name: string; is_public?: boolean; description?: string; app_url?: string }) =>
       request<App>('/admin/apps', {
         method: 'POST',
-        body: JSON.stringify({ slug, name }),
+        body: JSON.stringify(data),
+      }),
+
+    updateApp: (slug: string, data: { name?: string; is_public?: boolean; description?: string; app_url?: string }) =>
+      request<App>(`/admin/apps/${slug}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
       }),
 
     getApp: (slug: string) => request<AppDetail>(`/admin/apps/${slug}`),
@@ -271,6 +290,12 @@ export const api = {
     rejectAccessRequest: (slug: string, requestId: string) =>
       request<MessageResponse>(`/admin/apps/${slug}/requests/${requestId}/reject`, {
         method: 'POST',
+      }),
+
+    bulkGrantAccess: (data: { emails: string[]; app_slugs: string[]; role?: string }) =>
+      request<MessageResponse>('/admin/users/grant-bulk', {
+        method: 'POST',
+        body: JSON.stringify(data),
       }),
   },
 };

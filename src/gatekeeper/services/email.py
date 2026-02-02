@@ -332,3 +332,61 @@ Your account has been created and you can sign in using your email address.
 Sign in at: {self.settings.frontend_url}/signin
         """
         return await self._send_with_suppression_check(to_email, subject, html_body, text_body)
+
+    async def send_app_access_granted(
+        self,
+        to_email: str,
+        app_name: str,
+        app_description: str | None,
+        app_url: str | None,
+        granted_by: str,
+    ) -> bool:
+        """Send email when a user is granted access to an app."""
+        subject = f"You've been granted access to {app_name}"
+
+        description_html = ""
+        description_text = ""
+        if app_description:
+            description_html = f'<p style="color: #666; margin: 16px 0;">{app_description}</p>'
+            description_text = f"\n{app_description}\n"
+
+        if app_url:
+            button_html = f'<a href="{app_url}" class="button">Open {app_name}</a>'
+            button_text = f"Open the app: {app_url}"
+        else:
+            button_html = f'<a href="{self.settings.frontend_url}" class="button">Go to {self.settings.app_name}</a>'
+            button_text = f"Sign in at: {self.settings.frontend_url}"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .app-box {{ background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 16px 0; }}
+                .button {{ display: inline-block; padding: 12px 24px; background: #1a1a1a; color: #ffffff !important; text-decoration: none; border-radius: 6px; margin-top: 20px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>{self.settings.app_name}</h2>
+                <p>Great news! You've been granted access to <strong>{app_name}</strong> by {granted_by}.</p>
+                <div class="app-box">
+                    <strong>{app_name}</strong>
+                    {description_html}
+                </div>
+                {button_html}
+            </div>
+        </body>
+        </html>
+        """
+        text_body = f"""
+{self.settings.app_name}
+
+Great news! You've been granted access to {app_name} by {granted_by}.
+{description_text}
+{button_text}
+        """
+        return await self._send_with_suppression_check(to_email, subject, html_body, text_body)

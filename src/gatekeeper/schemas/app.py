@@ -8,6 +8,9 @@ from gatekeeper.models.app import AccessRequestStatus
 class AppCreate(BaseModel):
     slug: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9-]+$")
     name: str = Field(..., min_length=1, max_length=255)
+    is_public: bool = Field(default=False, description="Whether the app is publicly visible")
+    description: str | None = Field(None, max_length=1000, description="App description")
+    app_url: str | None = Field(None, max_length=500, description="URL to the app")
 
 
 class AppRead(BaseModel):
@@ -16,7 +19,29 @@ class AppRead(BaseModel):
     id: str
     slug: str
     name: str
+    is_public: bool
+    description: str | None
+    app_url: str | None
     created_at: datetime
+
+
+class AppPublic(BaseModel):
+    """Schema for user-facing app information (discovery)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    slug: str
+    name: str
+    description: str | None
+
+
+class AppUpdate(BaseModel):
+    """Schema for updating app fields."""
+
+    name: str | None = Field(None, min_length=1, max_length=255)
+    is_public: bool | None = None
+    description: str | None = Field(None, max_length=1000)
+    app_url: str | None = Field(None, max_length=500)
 
 
 class AppList(BaseModel):
@@ -39,6 +64,9 @@ class AppDetail(BaseModel):
     id: str
     slug: str
     name: str
+    is_public: bool
+    description: str | None
+    app_url: str | None
     created_at: datetime
     users: list[AppUserAccess]
 
@@ -75,3 +103,11 @@ class AccessRequestRead(BaseModel):
 
 class AccessRequestReview(BaseModel):
     role: str | None = Field(None, max_length=100, description="Role to assign if approving")
+
+
+class BulkGrantAccess(BaseModel):
+    """Schema for granting access to multiple apps at once."""
+
+    emails: list[str] = Field(..., min_length=1, description="List of user emails")
+    app_slugs: list[str] = Field(..., min_length=1, description="List of app slugs to grant access")
+    role: str | None = Field(None, max_length=100, description="Optional role for all grants")

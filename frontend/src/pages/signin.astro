@@ -8,10 +8,10 @@ const appName = import.meta.env.PUBLIC_APP_NAME || 'Gatekeeper';
 
 <Layout title="Sign In">
   <div class="min-h-screen flex items-center justify-center p-4">
-    <Card class="w-full max-w-lg">
+    <Card class="w-full max-w-md">
       <CardHeader class="text-center pb-2">
         <CardTitle class="text-2xl">{appName}</CardTitle>
-        <CardDescription>Sign in to your account</CardDescription>
+        <CardDescription id="signin-description">Sign in to your account</CardDescription>
       </CardHeader>
       <CardContent class="pt-4 pb-8 px-8">
         <SignInForm client:load />
@@ -21,7 +21,7 @@ const appName = import.meta.env.PUBLIC_APP_NAME || 'Gatekeeper';
 </Layout>
 
 <script>
-  // Redirect to docs if already signed in
+  // Redirect to home if already signed in
   async function checkAuth() {
     try {
       const res = await fetch('/api/v1/auth/me', { credentials: 'include' });
@@ -32,5 +32,27 @@ const appName = import.meta.env.PUBLIC_APP_NAME || 'Gatekeeper';
       }
     } catch {}
   }
+
+  // Show app context if ?app= parameter is present
+  function showAppContext() {
+    const params = new URLSearchParams(window.location.search);
+    const appSlug = params.get('app');
+    const descriptionEl = document.getElementById('signin-description');
+
+    if (appSlug && descriptionEl) {
+      // Fetch app name from public apps endpoint
+      fetch('/api/v1/auth/apps/public')
+        .then(res => res.json())
+        .then(apps => {
+          const app = apps.find((a: { slug: string }) => a.slug === appSlug);
+          if (app) {
+            descriptionEl.textContent = `Sign in to access ${app.name}`;
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
   checkAuth();
+  showAppContext();
 </script>

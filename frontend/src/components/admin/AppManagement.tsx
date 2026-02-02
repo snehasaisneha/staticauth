@@ -33,6 +33,9 @@ export function AppManagement({ onRefresh }: AppManagementProps) {
   const [showCreateForm, setShowCreateForm] = React.useState(false);
   const [newSlug, setNewSlug] = React.useState('');
   const [newName, setNewName] = React.useState('');
+  const [newDescription, setNewDescription] = React.useState('');
+  const [newAppUrl, setNewAppUrl] = React.useState('');
+  const [newIsPublic, setNewIsPublic] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
   const [createError, setCreateError] = React.useState<string | null>(null);
 
@@ -106,9 +109,18 @@ export function AppManagement({ onRefresh }: AppManagementProps) {
     setCreateError(null);
 
     try {
-      await api.admin.createApp(newSlug, newName);
+      await api.admin.createApp({
+        slug: newSlug,
+        name: newName,
+        description: newDescription || undefined,
+        app_url: newAppUrl || undefined,
+        is_public: newIsPublic,
+      });
       setNewSlug('');
       setNewName('');
+      setNewDescription('');
+      setNewAppUrl('');
+      setNewIsPublic(false);
       setShowCreateForm(false);
       await loadApps();
       onRefresh?.();
@@ -278,6 +290,36 @@ export function AppManagement({ onRefresh }: AppManagementProps) {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="app-description">Description (optional)</Label>
+                <Input
+                  id="app-description"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="A brief description of your app"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="app-url">App URL (optional)</Label>
+                <Input
+                  id="app-url"
+                  type="url"
+                  value={newAppUrl}
+                  onChange={(e) => setNewAppUrl(e.target.value)}
+                  placeholder="https://myapp.example.com"
+                />
+                <p className="text-xs text-muted-foreground">Direct link to the app for users</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="app-is-public"
+                  checked={newIsPublic}
+                  onChange={(e) => setNewIsPublic(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="app-is-public">Make publicly visible (users can discover and request access)</Label>
+              </div>
               <div className="flex gap-2">
                 <Button type="submit" disabled={isCreating}>
                   {isCreating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -307,8 +349,16 @@ export function AppManagement({ onRefresh }: AppManagementProps) {
                 <div className="flex items-center gap-3">
                   <AppWindow className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="font-medium">{app.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{app.name}</p>
+                      {app.is_public && (
+                        <Badge variant="secondary" className="text-xs">Public</Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">{app.slug}</p>
+                    {app.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-1">{app.description}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

@@ -214,6 +214,8 @@ class UserAppAccessInfo(BaseModel):
 
     app_slug: str = Field(..., description="App slug identifier")
     app_name: str = Field(..., description="App display name")
+    app_description: str | None = Field(None, description="App description")
+    app_url: str | None = Field(None, description="URL to the app")
     role: str | None = Field(None, description="User's role in this app")
     granted_at: datetime = Field(..., description="When access was granted")
 
@@ -222,6 +224,8 @@ class UserAppAccessInfo(BaseModel):
             "example": {
                 "app_slug": "eng-docs",
                 "app_name": "Engineering Docs",
+                "app_description": "Internal engineering documentation",
+                "app_url": "https://docs.example.com",
                 "role": "admin",
                 "granted_at": "2024-01-01T00:00:00Z",
             }

@@ -12,7 +12,7 @@ from gatekeeper.models.app import AccessRequestStatus, App, AppAccessRequest, Us
 from gatekeeper.models.otp import OTPPurpose
 from gatekeeper.models.user import User, UserStatus
 from gatekeeper.rate_limit import limiter
-from gatekeeper.schemas.app import AccessRequestCreate
+from gatekeeper.schemas.app import AccessRequestCreate, AppPublic
 from gatekeeper.schemas.auth import (
     AuthResponse,
     ErrorResponse,
@@ -423,6 +423,23 @@ async def update_me(
 
 
 @router.get(
+    "/apps/public",
+    response_model=list[AppPublic],
+    responses={
+        200: {"description": "List of public apps"},
+    },
+    summary="List public apps",
+    description="List all publicly visible apps for discovery.",
+)
+async def list_public_apps(db: DbSession) -> list[AppPublic]:
+    stmt = select(App).where(App.is_public == True).order_by(App.name)  # noqa: E712
+    result = await db.execute(stmt)
+    apps = result.scalars().all()
+
+    return [AppPublic(slug=app.slug, name=app.name, description=app.description) for app in apps]
+
+
+@router.get(
     "/me/apps",
     response_model=list[UserAppAccessInfo],
     responses={
@@ -449,6 +466,8 @@ async def list_my_apps(
         UserAppAccessInfo(
             app_slug=app.slug,
             app_name=app.name,
+            app_description=app.description,
+            app_url=app.app_url,
             role=access.role,
             granted_at=access.granted_at,
         )
@@ -462,11 +481,12 @@ async def list_my_apps(
     responses={
         200: {"description": "Access request submitted"},
         400: {"model": ErrorResponse, "description": "Already have access or pending request"},
+        403: {"model": ErrorResponse, "description": "App is not public"},
         404: {"model": ErrorResponse, "description": "App not found"},
         401: {"model": ErrorResponse, "description": "Not authenticated"},
     },
     summary="Request app access",
-    description="Request access to an app. Creates a pending request for admin review.",
+    description="Request access to a public app. Creates a pending request for admin review.",
 )
 async def request_app_access(
     slug: str,
@@ -483,6 +503,13 @@ async def request_app_access(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="App not found.",
+        )
+
+    # Check if app is public (users can only request access to public apps)
+    if not app.is_public:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This app is not available for access requests.",
         )
 
     # Check if user already has access

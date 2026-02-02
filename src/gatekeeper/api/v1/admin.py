@@ -15,7 +15,9 @@ from gatekeeper.schemas.app import (
     AppDetail,
     AppList,
     AppRead,
+    AppUpdate,
     AppUserAccess,
+    BulkGrantAccess,
     GrantAccess,
 )
 from gatekeeper.schemas.auth import ErrorResponse, MessageResponse
@@ -334,7 +336,16 @@ async def list_apps(admin: AdminUser, db: DbSession) -> AppList:
 
     return AppList(
         apps=[
-            AppRead(id=str(a.id), slug=a.slug, name=a.name, created_at=a.created_at) for a in apps
+            AppRead(
+                id=str(a.id),
+                slug=a.slug,
+                name=a.name,
+                is_public=a.is_public,
+                description=a.description,
+                app_url=a.app_url,
+                created_at=a.created_at,
+            )
+            for a in apps
         ],
         total=total,
     )
@@ -362,12 +373,26 @@ async def create_app(request: AppCreate, admin: AdminUser, db: DbSession) -> App
             detail=f"App with slug '{request.slug}' already exists",
         )
 
-    app = App(slug=request.slug, name=request.name)
+    app = App(
+        slug=request.slug,
+        name=request.name,
+        is_public=request.is_public,
+        description=request.description,
+        app_url=request.app_url,
+    )
     db.add(app)
     await db.flush()
     await db.refresh(app)
 
-    return AppRead(id=str(app.id), slug=app.slug, name=app.name, created_at=app.created_at)
+    return AppRead(
+        id=str(app.id),
+        slug=app.slug,
+        name=app.name,
+        is_public=app.is_public,
+        description=app.description,
+        app_url=app.app_url,
+        created_at=app.created_at,
+    )
 
 
 @router.get(
@@ -415,6 +440,9 @@ async def get_app(slug: str, admin: AdminUser, db: DbSession) -> AppDetail:
         id=str(app.id),
         slug=app.slug,
         name=app.name,
+        is_public=app.is_public,
+        description=app.description,
+        app_url=app.app_url,
         created_at=app.created_at,
         users=users,
     )
@@ -445,6 +473,50 @@ async def delete_app(slug: str, admin: AdminUser, db: DbSession) -> MessageRespo
     await db.flush()
 
     return MessageResponse(message=f"App '{slug}' deleted successfully")
+
+
+@router.patch(
+    "/apps/{slug}",
+    response_model=AppRead,
+    responses={
+        200: {"description": "App updated"},
+        404: {"model": ErrorResponse, "description": "App not found"},
+    },
+    summary="Update app",
+    description="Update an app's details. Admin only.",
+)
+async def update_app(slug: str, request: AppUpdate, admin: AdminUser, db: DbSession) -> AppRead:
+    stmt = select(App).where(App.slug == slug)
+    result = await db.execute(stmt)
+    app = result.scalar_one_or_none()
+
+    if not app:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"App '{slug}' not found",
+        )
+
+    if request.name is not None:
+        app.name = request.name
+    if request.is_public is not None:
+        app.is_public = request.is_public
+    if request.description is not None:
+        app.description = request.description
+    if request.app_url is not None:
+        app.app_url = request.app_url
+
+    await db.flush()
+    await db.refresh(app)
+
+    return AppRead(
+        id=str(app.id),
+        slug=app.slug,
+        name=app.name,
+        is_public=app.is_public,
+        description=app.description,
+        app_url=app.app_url,
+        created_at=app.created_at,
+    )
 
 
 @router.get(
@@ -553,6 +625,16 @@ async def grant_app_access(
     )
     db.add(access)
     await db.flush()
+
+    # Send email notification
+    email_service = EmailService(db=db)
+    await email_service.send_app_access_granted(
+        to_email=user.email,
+        app_name=app.name,
+        app_description=app.description,
+        app_url=app.app_url,
+        granted_by=admin.email,
+    )
 
     role_msg = f" with role '{request.role}'" if request.role else ""
     return MessageResponse(message=f"Granted access to '{slug}' for '{request.email}'{role_msg}")
@@ -820,3 +902,84 @@ async def reject_access_request(
     await db.flush()
 
     return MessageResponse(message=f"Rejected access request from '{user.email}' for '{slug}'")
+
+
+@router.post(
+    "/users/grant-bulk",
+    response_model=MessageResponse,
+    responses={
+        200: {"description": "Access granted to multiple apps"},
+        400: {"model": ErrorResponse, "description": "Invalid emails or app slugs"},
+    },
+    summary="Bulk grant access",
+    description="Grant multiple users access to multiple apps at once. Admin only.",
+)
+async def bulk_grant_access(
+    request: BulkGrantAccess, admin: AdminUser, db: DbSession
+) -> MessageResponse:
+    # Find all users
+    users_stmt = select(User).where(User.email.in_([e.lower() for e in request.emails]))
+    users_result = await db.execute(users_stmt)
+    users = {u.email: u for u in users_result.scalars().all()}
+
+    missing_users = [e for e in request.emails if e.lower() not in users]
+    if missing_users:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Users not found: {', '.join(missing_users)}",
+        )
+
+    # Find all apps
+    apps_stmt = select(App).where(App.slug.in_(request.app_slugs))
+    apps_result = await db.execute(apps_stmt)
+    apps = {a.slug: a for a in apps_result.scalars().all()}
+
+    missing_apps = [s for s in request.app_slugs if s not in apps]
+    if missing_apps:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Apps not found: {', '.join(missing_apps)}",
+        )
+
+    # Grant access to each user-app pair
+    grants_created = 0
+    email_service = EmailService(db=db)
+
+    for email in request.emails:
+        user = users[email.lower()]
+        for app_slug in request.app_slugs:
+            app = apps[app_slug]
+
+            # Check if access already exists
+            access_stmt = select(UserAppAccess).where(
+                UserAppAccess.user_id == user.id,
+                UserAppAccess.app_id == app.id,
+            )
+            access_result = await db.execute(access_stmt)
+            existing = access_result.scalar_one_or_none()
+
+            if not existing:
+                access = UserAppAccess(
+                    user_id=user.id,
+                    app_id=app.id,
+                    role=request.role,
+                    granted_by=admin.email,
+                )
+                db.add(access)
+                grants_created += 1
+
+                # Send email notification
+                await email_service.send_app_access_granted(
+                    to_email=user.email,
+                    app_name=app.name,
+                    app_description=app.description,
+                    app_url=app.app_url,
+                    granted_by=admin.email,
+                )
+
+    await db.flush()
+
+    return MessageResponse(
+        message=f"Created {grants_created} access grant(s) for {len(request.emails)} user(s) "
+        f"across {len(request.app_slugs)} app(s)"
+    )

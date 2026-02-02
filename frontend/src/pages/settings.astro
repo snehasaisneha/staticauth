@@ -1,0 +1,10 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SettingsPage } from '@/components/SettingsPage';
+
+const appName = import.meta.env.PUBLIC_APP_NAME || 'Gatekeeper';
+---
+
+<Layout title="Settings">
+  <SettingsPage client:load appName={appName} />
+</Layout>
