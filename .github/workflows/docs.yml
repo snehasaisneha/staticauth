@@ -1,0 +1,44 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".readthedocs.yaml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".readthedocs.yaml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Sphinx Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.9"
+
+      - name: Install dependencies
+        run: uv sync --frozen --group docs
+
+      - name: Build docs
+        run: uv run sphinx-build -b html docs/source docs/_build/html -W --keep-going
