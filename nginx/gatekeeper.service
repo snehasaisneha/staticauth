@@ -1,0 +1,49 @@
+# Gatekeeper Systemd Service
+# Copy to /etc/systemd/system/gatekeeper.service
+#
+# Replace placeholders:
+#   {{USER}} - system user (e.g., ubuntu, gatekeeper)
+#   {{GROUP}} - system group (e.g., ubuntu, gatekeeper)
+#   {{INSTALL_PATH}} - path to gatekeeper installation (e.g., /opt/gatekeeper)
+#   {{UV_PATH}} - path to uv binary (e.g., /home/ubuntu/.local/bin/uv)
+#
+# After copying:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable gatekeeper
+#   sudo systemctl start gatekeeper
+#   sudo systemctl status gatekeeper
+
+[Unit]
+Description=Gatekeeper Authentication Gateway
+Documentation=https://github.com/your-org/gatekeeper
+After=network.target
+
+[Service]
+Type=simple
+User={{USER}}
+Group={{GROUP}}
+WorkingDirectory={{INSTALL_PATH}}
+
+# Start the server
+ExecStart={{UV_PATH}} run gatekeeper
+
+# Restart on failure
+Restart=always
+RestartSec=5
+
+# Environment
+Environment=PATH={{UV_PATH}}:/usr/local/bin:/usr/bin:/bin
+
+# Security hardening (optional, uncomment as needed)
+# NoNewPrivileges=true
+# ProtectSystem=strict
+# ProtectHome=true
+# PrivateTmp=true
+# ReadWritePaths={{INSTALL_PATH}}/data
+
+# Resource limits (optional)
+# LimitNOFILE=65536
+# MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
