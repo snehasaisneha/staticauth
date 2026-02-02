@@ -1,0 +1,187 @@
+# Configuration
+
+Gatekeeper is configured entirely through environment variables. Create a `.env` file in the project root, or set them in your shell or deployment environment.
+
+## Required settings
+
+These must be set for Gatekeeper to run:
+
+### SECRET_KEY
+
+A random string used to sign session tokens. Must be at least 32 characters.
+
+```bash
+SECRET_KEY=your-random-secret-key-here-make-it-long
+```
+
+Generate one with:
+
+```bash
+openssl rand -hex 32
+```
+
+:::{warning}
+Keep this secret. If it leaks, attackers can forge session tokens.
+:::
+
+### APP_URL
+
+The public URL where Gatekeeper is hosted.
+
+```bash
+APP_URL=https://auth.example.com
+```
+
+### FRONTEND_URL
+
+The URL where the frontend is served. Usually the same as `APP_URL`.
+
+```bash
+FRONTEND_URL=https://auth.example.com
+```
+
+## Email settings
+
+Gatekeeper sends login codes by email. Configure one of these providers:
+
+### AWS SES
+
+```bash
+EMAIL_PROVIDER=ses
+SES_REGION=us-east-1
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+EMAIL_FROM=noreply@yourdomain.com
+```
+
+### SMTP
+
+```bash
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=user
+SMTP_PASSWORD=password
+EMAIL_FROM=noreply@yourdomain.com
+```
+
+For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password.
+
+## Database settings
+
+### DATABASE_URL
+
+Connection string for the database. Defaults to SQLite.
+
+```bash
+# SQLite (default)
+DATABASE_URL=sqlite+aiosqlite:///./gatekeeper.db
+
+# PostgreSQL
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost/gatekeeper
+```
+
+SQLite works well for small deployments. Use PostgreSQL for high availability or if you need multiple Gatekeeper instances.
+
+## Cookie and SSO settings
+
+### COOKIE_DOMAIN
+
+The domain for session cookies. Set this to enable SSO across subdomains.
+
+```bash
+# SSO across all *.example.com subdomains
+COOKIE_DOMAIN=.example.com
+
+# Single domain only (default)
+COOKIE_DOMAIN=auth.example.com
+```
+
+The leading dot (`.example.com`) allows the cookie to be shared across subdomains.
+
+### SESSION_EXPIRY_DAYS
+
+How long sessions last before users need to sign in again.
+
+```bash
+SESSION_EXPIRY_DAYS=30  # default
+```
+
+## Passkey settings
+
+For passwordless sign-in with passkeys (WebAuthn):
+
+### WEBAUTHN_RP_ID
+
+The domain for passkey registration. Must match where users access Gatekeeper.
+
+```bash
+WEBAUTHN_RP_ID=auth.example.com
+```
+
+### WEBAUTHN_RP_NAME
+
+Display name shown in passkey prompts.
+
+```bash
+WEBAUTHN_RP_NAME=My Company Auth
+```
+
+### WEBAUTHN_ORIGIN
+
+The full origin URL for passkey verification.
+
+```bash
+WEBAUTHN_ORIGIN=https://auth.example.com
+```
+
+## User registration settings
+
+### ACCEPTED_DOMAINS
+
+Email domains that are automatically approved when users register. Comma-separated.
+
+```bash
+ACCEPTED_DOMAINS=example.com,company.org
+```
+
+Users with emails from other domains go into a pending state and need admin approval.
+
+## Server settings
+
+### SERVER_HOST and SERVER_PORT
+
+Where the server listens.
+
+```bash
+SERVER_HOST=0.0.0.0  # default
+SERVER_PORT=8000     # default
+```
+
+### OTP_EXPIRY_MINUTES
+
+How long login codes remain valid.
+
+```bash
+OTP_EXPIRY_MINUTES=10  # default
+```
+
+## All settings reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SECRET_KEY` | (required) | Token signing key, 32+ chars |
+| `DATABASE_URL` | `sqlite:///gatekeeper.db` | Database connection string |
+| `APP_URL` | `http://localhost:8000` | Public Gatekeeper URL |
+| `FRONTEND_URL` | `http://localhost:4321` | Frontend URL |
+| `COOKIE_DOMAIN` | `.localhost` | Cookie domain for SSO |
+| `SESSION_EXPIRY_DAYS` | `30` | Session lifetime |
+| `EMAIL_PROVIDER` | `ses` | `ses` or `smtp` |
+| `EMAIL_FROM` | (required) | Sender email address |
+| `ACCEPTED_DOMAINS` | (empty) | Auto-approve email domains |
+| `WEBAUTHN_RP_ID` | `localhost` | Passkey domain |
+| `WEBAUTHN_RP_NAME` | `Gatekeeper` | Passkey display name |
+| `WEBAUTHN_ORIGIN` | `http://localhost:8000` | Passkey origin |
+| `SERVER_HOST` | `0.0.0.0` | Server bind address |
+| `SERVER_PORT` | `8000` | Server port |
+| `OTP_EXPIRY_MINUTES` | `10` | Login code validity |
