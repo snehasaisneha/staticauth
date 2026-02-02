@@ -1,0 +1,32 @@
+# Gatekeeper Systemd Service
+#
+# CONFIGURE THESE (lines 11-15):
+# ─────────────────────────────────────────────────────────────────────────────
+
+[Unit]
+Description=Gatekeeper Auth Gateway
+After=network.target
+
+[Service]
+# User and group to run as
+User=www-data
+Group=www-data
+
+# Path to your Gatekeeper installation
+WorkingDirectory=/opt/gatekeeper
+
+# Path to uv (find with: which uv)
+ExecStart=/usr/local/bin/uv run gatekeeper
+
+# ─────────────────────────────────────────────────────────────────────────────
+# END CONFIGURATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target
