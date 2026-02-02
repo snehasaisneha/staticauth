@@ -1,0 +1,30 @@
+repos:
+  # Ruff linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Run pytest
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: uv run pytest --tb=short -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+  # Frontend build check
+  - repo: local
+    hooks:
+      - id: frontend-build
+        name: frontend-build
+        entry: bash -c 'npm -C frontend install && npm -C frontend run build'
+        language: system
+        pass_filenames: false
+        files: ^frontend/
+        stages: [pre-commit]

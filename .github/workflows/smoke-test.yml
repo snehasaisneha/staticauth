@@ -22,10 +22,10 @@ jobs:
     name: App Boot
     runs-on: ubuntu-latest
     env:
-      GATEKEEPER_SECRET_KEY: test-secret-key-for-ci
-      GATEKEEPER_DATABASE_URL: sqlite+aiosqlite:///./test.db
-      GATEKEEPER_RP_ID: localhost
-      GATEKEEPER_RP_NAME: Test
+      SECRET_KEY: test-secret-key-minimum-32-characters
+      DATABASE_URL: sqlite+aiosqlite:///./test.db
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_RP_NAME: Test
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,10 +60,10 @@ jobs:
     name: CLI Commands
     runs-on: ubuntu-latest
     env:
-      GATEKEEPER_SECRET_KEY: test-secret-key-for-ci
-      GATEKEEPER_DATABASE_URL: sqlite+aiosqlite:///./test.db
-      GATEKEEPER_RP_ID: localhost
-      GATEKEEPER_RP_NAME: Test
+      SECRET_KEY: test-secret-key-minimum-32-characters
+      DATABASE_URL: sqlite+aiosqlite:///./test.db
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_RP_NAME: Test
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
