@@ -16,7 +16,7 @@ A lightweight, self-hosted authentication gateway for internal tools. Supports e
 
 - Python 3.12+
 - Node.js 22+ (for frontend)
-- uv (Python package manager)
+- uv 0.9+ (Python package manager)
 
 ## Quick Start
 
@@ -74,23 +74,23 @@ The frontend will be available at `http://localhost:4321`
 
 ### Backend Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `APP_NAME` | Application name (used in emails) | Gatekeeper |
-| `SECRET_KEY` | Secret key for signing (min 32 chars) | - |
-| `DATABASE_URL` | Database connection string | sqlite+aiosqlite:///./gatekeeper.db |
-| `ACCEPTED_DOMAINS` | Comma-separated domains for auto-approval | - |
-| `EMAIL_PROVIDER` | `ses` or `smtp` | ses |
-| `EMAIL_FROM_NAME` | Sender display name in emails | Gatekeeper |
-| `WEBAUTHN_RP_ID` | WebAuthn relying party ID | localhost |
-| `WEBAUTHN_ORIGIN` | Frontend origin for WebAuthn | http://localhost:4321 |
+| Variable           | Description                               | Default                             |
+| ------------------ | ----------------------------------------- | ----------------------------------- |
+| `APP_NAME`         | Application name (used in emails)         | Gatekeeper                          |
+| `SECRET_KEY`       | Secret key for signing (min 32 chars)     | -                                   |
+| `DATABASE_URL`     | Database connection string                | sqlite+aiosqlite:///./gatekeeper.db |
+| `ACCEPTED_DOMAINS` | Comma-separated domains for auto-approval | -                                   |
+| `EMAIL_PROVIDER`   | `ses` or `smtp`                           | ses                                 |
+| `EMAIL_FROM_NAME`  | Sender display name in emails             | Gatekeeper                          |
+| `WEBAUTHN_RP_ID`   | WebAuthn relying party ID                 | localhost                           |
+| `WEBAUTHN_ORIGIN`  | Frontend origin for WebAuthn              | http://localhost:4321               |
 
 See `.env.example` for all options.
 
 ### Frontend Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable          | Description                  | Default    |
+| ----------------- | ---------------------------- | ---------- |
 | `PUBLIC_APP_NAME` | Application name shown in UI | Gatekeeper |
 
 See `frontend/.env.example`.
@@ -195,10 +195,12 @@ sudo certbot --nginx -d yourdomain.com
 ### 3. Firewall/Security Groups
 
 **Routing Server (public):**
+
 - Allow inbound: 80, 443 (from anywhere)
 - Allow outbound: all to docs server private IP
 
 **Docs Server (private):**
+
 - Allow inbound: 8080, 4321, 3000 (from routing server only)
 - No public access
 
@@ -226,6 +228,7 @@ docker run -p 1025:1025 -p 8025:8025 mailhog/mailhog
 ```
 
 Then configure SMTP in `.env`:
+
 ```
 EMAIL_PROVIDER=smtp
 SMTP_HOST=localhost
@@ -251,6 +254,7 @@ uv run migrations --n 3
 #### Creating new migrations
 
 Add a new SQL file in `src/gatekeeper/db/migrations/` with the naming convention:
+
 - `001_init.sql`
 - `002_add_feature.sql`
 - etc.
@@ -299,13 +303,13 @@ All endpoints require admin authentication.
 
 ## Pages
 
-| Path | Description | Auth Required |
-|------|-------------|---------------|
-| `/signin` | Sign in page | No |
-| `/register` | Registration page | No |
-| `/account` | Account settings (passkeys, delete account) | Yes |
-| `/admin` | Admin panel | Yes (admin only) |
-| `/` | Protected docs | Yes |
+| Path        | Description                                 | Auth Required    |
+| ----------- | ------------------------------------------- | ---------------- |
+| `/signin`   | Sign in page                                | No               |
+| `/register` | Registration page                           | No               |
+| `/account`  | Account settings (passkeys, delete account) | Yes              |
+| `/admin`    | Admin panel                                 | Yes (admin only) |
+| `/`         | Protected docs                              | Yes              |
 
 ## License
 
