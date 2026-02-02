@@ -44,6 +44,7 @@ Frontend: `cd frontend && npm install && npm run dev`
 ## Protecting Apps
 
 1. Register an app in Gatekeeper:
+
    ```bash
    uv run gk apps add --slug docs --name "Documentation"
    uv run gk apps grant --slug docs --email user@example.com
@@ -82,14 +83,14 @@ uv run gk ops healthcheck
 
 Key environment variables (see `.env.example` for all):
 
-| Variable | Description |
-|----------|-------------|
-| `SECRET_KEY` | Signing key (min 32 chars) |
-| `DATABASE_URL` | `sqlite+aiosqlite:///./gatekeeper.db` or PostgreSQL |
-| `ACCEPTED_DOMAINS` | Auto-approve emails from these domains |
-| `EMAIL_PROVIDER` | `ses` or `smtp` |
-| `COOKIE_DOMAIN` | `.example.com` for multi-app SSO |
-| `WEBAUTHN_RP_ID` | Domain for passkey registration |
+| Variable           | Description                                         |
+| ------------------ | --------------------------------------------------- |
+| `SECRET_KEY`       | Signing key (min 32 chars)                          |
+| `DATABASE_URL`     | `sqlite+aiosqlite:///./gatekeeper.db` or PostgreSQL |
+| `ACCEPTED_DOMAINS` | Auto-approve emails from these domains              |
+| `EMAIL_PROVIDER`   | `ses` or `smtp`                                     |
+| `COOKIE_DOMAIN`    | `.example.com` for multi-app SSO                    |
+| `WEBAUTHN_RP_ID`   | Domain for passkey registration                     |
 
 ## Production Deployment
 
@@ -112,18 +113,23 @@ See [`deployment/README.md`](deployment/README.md) for full guide.
 ## Who This Is For
 
 **Good fit:**
+
 - Small to medium teams (5–100 users)
 - 3–10 internal tools needing protection
 - Self-hosted requirement (data residency, compliance)
 - No existing IdP, or want independence from it
 
 **Not a fit:**
+
 - Enterprise scale (1000+ users, complex RBAC hierarchies)
 - Multi-tenant SaaS (customer-facing auth)
 - Existing Google Workspace/Okta SSO you want to use
 
-## License
+## License & Copyright
 
-AGPL-3.0-or-later
+Gatekeeper - A lightweight, self-hosted authentication gateway
+Copyright (C) 2025 Sai Sneha
 
-Use, modify, and deploy internally with no obligations. Source-sharing only required if you offer a modified version as a public service.
+Gatekeeper is licensed under AGPL-3.0-or-later. Read more in the [LICENSE](LICENSE) file.
+
+You are perpetually free to use, modify, and deploy the platform internally, with no obligations. Source-sharing is only required if you offer a modified version as a public service.
