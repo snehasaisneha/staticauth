@@ -42,7 +42,12 @@ class Settings(BaseSettings):
     accepted_domains: str = ""
     otp_expiry_minutes: int = 5
     session_expiry_days: int = 30
-    cookie_domain: str | None = None  # e.g., "example.com" for production
+    cookie_domain: str | None = None  # e.g., ".example.com" for multi-app SSO
+
+    # Multi-App Config
+    # "allow" = unregistered apps allow any authenticated user
+    # "deny" = unregistered apps return 403
+    default_app_access: Literal["allow", "deny"] = "allow"
 
     # WebAuthn
     webauthn_rp_id: str = "localhost"
