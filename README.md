@@ -157,14 +157,15 @@ npm install
 npm run build
 
 # Setup systemd service
-sudo cp ~/deploy/gatekeeper/deploy/systemd/gatekeeper.service /etc/systemd/system/
+sudo cp ~/deploy/gatekeeper/deployment/systemd/gatekeeper.service /etc/systemd/system/
+# Edit the service file with your paths
 sudo systemctl daemon-reload
 sudo systemctl enable gatekeeper
 sudo systemctl start gatekeeper
 
 # Setup nginx
-sudo cp ~/deploy/gatekeeper/deploy/nginx/docs-server.conf /etc/nginx/sites-available/gatekeeper
-# Edit the file: replace YOUR_DOMAIN, /path/to/gatekeeper, /path/to/docs/build
+sudo cp ~/deploy/gatekeeper/deployment/nginx/gatekeeper.conf /etc/nginx/sites-available/gatekeeper
+# Edit the file: change variables at top
 sudo ln -s /etc/nginx/sites-available/gatekeeper /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
@@ -181,9 +182,8 @@ chmod -R 755 /home/ubuntu/deploy
 sudo apt update
 sudo apt install -y nginx certbot python3-certbot-nginx
 
-# Setup nginx config
-sudo cp ~/deploy/gatekeeper/deploy/nginx/routing-server.conf /etc/nginx/sites-available/yourdomain.com
-# Edit the file: replace YOUR_DOMAIN, DOCS_SERVER_IP
+# Setup nginx config (see deployment/nginx/README.md for details)
+# Edit the file: replace variables at top
 sudo ln -s /etc/nginx/sites-available/yourdomain.com /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
@@ -269,7 +269,11 @@ For PostgreSQL, change the database URL:
 DATABASE_URL=postgresql+asyncpg://user:pass@localhost/gatekeeper
 ```
 
-Note: The migration runner only supports SQLite. For PostgreSQL, run the SQL files manually with `psql`.
+The migration runner supports both SQLite and PostgreSQL. For PostgreSQL, install `psycopg2-binary`:
+```bash
+uv add psycopg2-binary
+uv run all-migrations
+```
 
 ## API Endpoints
 

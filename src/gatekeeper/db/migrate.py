@@ -1,134 +1,229 @@
-"""Simple SQL migration runner for Gatekeeper."""
+"""Database migration runner for Gatekeeper.
+
+Supports both SQLite and PostgreSQL.
+"""
 
 import argparse
 import asyncio
-import re
 from pathlib import Path
 
-import aiosqlite
-
 from gatekeeper.config import get_settings
-
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
 
-def get_db_path() -> str | None:
-    """Extract database path from settings URL."""
+def get_db_info() -> tuple[str, str]:
+    """Get database type and connection string.
+
+    Returns:
+        Tuple of (db_type, connection_string) where db_type is 'sqlite' or 'postgres'
+    """
     settings = get_settings()
     db_url = settings.database_url
 
-    if db_url.startswith("sqlite+aiosqlite:///"):
-        db_path = db_url.replace("sqlite+aiosqlite:///", "")
-    elif db_url.startswith("sqlite:///"):
-        db_path = db_url.replace("sqlite:///", "")
-    else:
-        print(f"Unsupported database URL: {db_url}")
-        print("Migrations only support SQLite. For PostgreSQL, use psql.")
-        return None
+    if db_url.startswith("sqlite"):
+        # Extract path from sqlite+aiosqlite:/// or sqlite:///
+        if ":///" in db_url:
+            db_path = db_url.split(":///", 1)[1]
+            if db_path.startswith("./"):
+                db_path = db_path[2:]
+            return ("sqlite", db_path)
+    elif db_url.startswith("postgresql") or db_url.startswith("postgres"):
+        # Convert async URL to sync for migrations if needed
+        conn_str = db_url.replace("postgresql+asyncpg://", "postgresql://")
+        return ("postgres", conn_str)
 
-    if db_path.startswith("./"):
-        db_path = db_path[2:]
-
-    return db_path
-
-
-async def get_applied_migrations(db: aiosqlite.Connection) -> set[str]:
-    """Get list of already applied migrations."""
-    try:
-        cursor = await db.execute("SELECT name FROM _migrations")
-        rows = await cursor.fetchall()
-        return {row[0] for row in rows}
-    except aiosqlite.OperationalError:
-        # Table doesn't exist yet
-        return set()
+    raise ValueError(f"Unsupported database URL: {db_url}")
 
 
-async def apply_migration(db: aiosqlite.Connection, name: str, sql: str) -> None:
-    """Apply a single migration."""
-    print(f"Applying migration: {name}")
-    await db.executescript(sql)
-    await db.execute("INSERT INTO _migrations (name) VALUES (?)", (name,))
-    await db.commit()
-    print(f"  Applied: {name}")
+async def run_sqlite_migrations(db_path: str, target: int | None = None) -> None:
+    """Run migrations on SQLite database."""
+    import aiosqlite
 
-
-async def run_migrations(target_number: int | None = None) -> None:
-    """Run migrations.
-
-    Args:
-        target_number: If provided, run only this specific migration number.
-                      If None, run all pending migrations.
-    """
-    db_path = get_db_path()
-    if not db_path:
-        return
-
-    print(f"Running migrations on: {db_path}")
+    print(f"Running migrations on SQLite: {db_path}")
 
     async with aiosqlite.connect(db_path) as db:
-        applied = await get_applied_migrations(db)
+        # Get applied migrations
+        try:
+            cursor = await db.execute("SELECT name FROM _migrations")
+            applied = {row[0] for row in await cursor.fetchall()}
+        except aiosqlite.OperationalError:
+            applied = set()
 
-        # Get all migration files sorted by name
+        # Get migration files
         migration_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
-
         if not migration_files:
             print("No migration files found.")
             return
 
-        # If targeting a specific migration number
-        if target_number is not None:
-            prefix = f"{target_number:03d}_"
-            matches = [f for f in migration_files if f.name.startswith(prefix)]
-            if not matches:
-                print(f"No migration found with number {target_number}")
+        # Filter to target if specified
+        if target is not None:
+            prefix = f"{target:03d}_"
+            migration_files = [f for f in migration_files if f.name.startswith(prefix)]
+            if not migration_files:
+                print(f"No migration found with number {target}")
                 return
-            migration_file = matches[0]
-            if migration_file.name in applied:
-                print(f"Migration {migration_file.name} already applied.")
-                return
-            sql = migration_file.read_text()
-            await apply_migration(db, migration_file.name, sql)
-            print("\nApplied 1 migration.")
-            return
 
-        # Run all pending migrations
-        pending = [f for f in migration_files if f.name not in applied]
+        # Apply pending migrations
+        count = 0
+        for mf in migration_files:
+            if mf.name in applied:
+                if target is not None:
+                    print(f"Migration {mf.name} already applied.")
+                continue
 
-        if not pending:
+            print(f"Applying: {mf.name}")
+            sql = mf.read_text()
+            await db.executescript(sql)
+            await db.execute("INSERT INTO _migrations (name) VALUES (?)", (mf.name,))
+            await db.commit()
+            count += 1
+
+        if count == 0:
             print("All migrations already applied.")
+        else:
+            print(f"\nApplied {count} migration(s).")
+
+
+def run_postgres_migrations(conn_str: str, target: int | None = None) -> None:
+    """Run migrations on PostgreSQL database."""
+    try:
+        import psycopg2
+    except ImportError:
+        print("PostgreSQL support requires psycopg2:")
+        print("  uv add psycopg2-binary")
+        print("\nAlternatively, run migrations manually:")
+        print(f"  psql $DATABASE_URL -f {MIGRATIONS_DIR}/001_init.sql")
+        return
+
+    print(f"Running migrations on PostgreSQL")
+
+    conn = psycopg2.connect(conn_str)
+    conn.autocommit = False
+    cur = conn.cursor()
+
+    try:
+        # Ensure _migrations table exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS _migrations (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+
+        # Get applied migrations
+        cur.execute("SELECT name FROM _migrations")
+        applied = {row[0] for row in cur.fetchall()}
+
+        # Get migration files
+        migration_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
+        if not migration_files:
+            print("No migration files found.")
             return
 
-        for migration_file in pending:
-            sql = migration_file.read_text()
-            await apply_migration(db, migration_file.name, sql)
+        # Filter to target if specified
+        if target is not None:
+            prefix = f"{target:03d}_"
+            migration_files = [f for f in migration_files if f.name.startswith(prefix)]
+            if not migration_files:
+                print(f"No migration found with number {target}")
+                return
 
-        print(f"\nApplied {len(pending)} migration(s).")
+        # Apply pending migrations
+        count = 0
+        for mf in migration_files:
+            if mf.name in applied:
+                if target is not None:
+                    print(f"Migration {mf.name} already applied.")
+                continue
+
+            print(f"Applying: {mf.name}")
+            sql = mf.read_text()
+
+            # PostgreSQL compatibility: adjust SQLite-specific syntax
+            sql = sql.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
+            sql = sql.replace("BLOB", "BYTEA")
+
+            cur.execute(sql)
+            cur.execute("INSERT INTO _migrations (name) VALUES (%s)", (mf.name,))
+            conn.commit()
+            count += 1
+
+        if count == 0:
+            print("All migrations already applied.")
+        else:
+            print(f"\nApplied {count} migration(s).")
+
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        cur.close()
+        conn.close()
+
+
+async def run_migrations(target: int | None = None) -> None:
+    """Run database migrations."""
+    db_type, conn_str = get_db_info()
+
+    if db_type == "sqlite":
+        await run_sqlite_migrations(conn_str, target)
+    else:
+        run_postgres_migrations(conn_str, target)
 
 
 async def show_status() -> None:
     """Show migration status."""
-    db_path = get_db_path()
-    if not db_path:
-        return
-
+    db_type, conn_str = get_db_info()
     migration_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
 
-    if not Path(db_path).exists():
-        print(f"Database does not exist: {db_path}")
-        print("\nPending migrations:")
-        for f in migration_files:
-            print(f"  - {f.name}")
-        return
+    if db_type == "sqlite":
+        import aiosqlite
 
-    async with aiosqlite.connect(db_path) as db:
-        applied = await get_applied_migrations(db)
+        if not Path(conn_str).exists():
+            print(f"Database does not exist: {conn_str}")
+            print("\nPending migrations:")
+            for f in migration_files:
+                print(f"  - {f.name}")
+            return
 
-        print("Migration status:")
-        for f in migration_files:
-            status = "✓" if f.name in applied else "○"
-            print(f"  {status} {f.name}")
+        async with aiosqlite.connect(conn_str) as db:
+            try:
+                cursor = await db.execute("SELECT name FROM _migrations")
+                applied = {row[0] for row in await cursor.fetchall()}
+            except aiosqlite.OperationalError:
+                applied = set()
 
+            print("Migration status:")
+            for f in migration_files:
+                status = "✓" if f.name in applied else "○"
+                print(f"  {status} {f.name}")
+    else:
+        try:
+            import psycopg2
+            conn = psycopg2.connect(conn_str)
+            cur = conn.cursor()
+            try:
+                cur.execute("SELECT name FROM _migrations")
+                applied = {row[0] for row in cur.fetchall()}
+            except psycopg2.ProgrammingError:
+                applied = set()
+            finally:
+                cur.close()
+                conn.close()
+
+            print("Migration status:")
+            for f in migration_files:
+                status = "✓" if f.name in applied else "○"
+                print(f"  {status} {f.name}")
+        except ImportError:
+            print("PostgreSQL status check requires psycopg2:")
+            print("  uv add psycopg2-binary")
+
+
+# Entry points for pyproject.toml scripts
 
 def run_all() -> None:
     """Entry point for `uv run all-migrations`."""
@@ -145,7 +240,7 @@ def run_single() -> None:
         help="Migration number to run (e.g., 1 for 001_init.sql)",
     )
     args = parser.parse_args()
-    asyncio.run(run_migrations(target_number=args.n))
+    asyncio.run(run_migrations(target=args.n))
 
 
 def main() -> None:

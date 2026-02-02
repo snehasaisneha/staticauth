@@ -20,7 +20,7 @@ deployment/
 
 ```bash
 # Clone and install
-git clone https://github.com/snehasaisneha/gatekeeper.git /opt/gatekeeper
+git clone https://github.com/YOUR_USERNAME/gatekeeper.git /opt/gatekeeper
 cd /opt/gatekeeper
 cp .env.example .env
 nano .env  # Configure your settings
