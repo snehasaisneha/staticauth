@@ -38,6 +38,15 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Tailwind v4 is a major rewrite - ignore until manual migration
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tailwind-merge"
+        update-types: ["version-update:semver-major"]
+      # SimpleWebAuthn major bumps need manual review
+      - dependency-name: "@simplewebauthn/browser"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
