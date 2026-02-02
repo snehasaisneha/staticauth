@@ -19,6 +19,7 @@ class User(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[UserStatus] = mapped_column(
         Enum(UserStatus, values_callable=lambda x: [e.value for e in x]),
         default=UserStatus.PENDING,
@@ -37,6 +38,9 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
     passkeys: Mapped[list["PasskeyCredential"]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    app_access: Mapped[list["UserAppAccess"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
     )
 

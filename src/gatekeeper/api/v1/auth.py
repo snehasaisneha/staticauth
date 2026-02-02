@@ -3,14 +3,16 @@ import json
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Path, Request, Response, status
+from fastapi import APIRouter, Cookie, Header, HTTPException, Path, Request, Response, status
 from sqlalchemy import select
 
-from gatekeeper.api.deps import CurrentUser, DbSession
+from gatekeeper.api.deps import CurrentUser, CurrentUserOptional, DbSession
 from gatekeeper.config import get_settings
 from gatekeeper.rate_limit import limiter
+from gatekeeper.models.app import AccessRequestStatus, App, AppAccessRequest, UserAppAccess
 from gatekeeper.models.otp import OTPPurpose
 from gatekeeper.models.user import User, UserStatus
+from gatekeeper.schemas.app import AccessRequestCreate
 from gatekeeper.schemas.auth import (
     AuthResponse,
     ErrorResponse,
@@ -20,6 +22,8 @@ from gatekeeper.schemas.auth import (
     PasskeyInfo,
     PasskeyOptionsRequest,
     PasskeyVerifyRequest,
+    ProfileUpdateRequest,
+    UserAppAccessInfo,
     UserResponse,
 )
 from gatekeeper.services.email import EmailService
@@ -52,6 +56,78 @@ def set_session_cookie(response: Response, token: str) -> None:
 
 def clear_session_cookie(response: Response) -> None:
     response.delete_cookie(key=COOKIE_NAME, domain=settings.cookie_domain, path="/")
+
+
+@router.get(
+    "/validate",
+    responses={
+        200: {"description": "Access granted"},
+        401: {"description": "Not authenticated"},
+        403: {"description": "Access denied to this app"},
+    },
+    summary="Validate access (nginx auth_request)",
+    description="Validate user authentication and app access. Used by nginx auth_request directive.",
+)
+async def validate(
+    response: Response,
+    db: DbSession,
+    current_user: CurrentUserOptional,
+    x_gk_app: str | None = Header(None, alias="X-GK-App"),
+) -> Response:
+    """
+    Validate endpoint for nginx auth_request.
+
+    - If user not authenticated: 401
+    - If no X-GK-App header: 200 with X-Auth-User (pure identity check)
+    - If app not registered: follows DEFAULT_APP_ACCESS setting
+    - If app registered: checks user_app_access table
+    """
+    # Check authentication
+    if not current_user:
+        return Response(status_code=status.HTTP_401_UNAUTHORIZED)
+
+    # Set user header for all authenticated requests
+    response.headers["X-Auth-User"] = current_user.email
+
+    # No app specified - pure identity check
+    if not x_gk_app:
+        return Response(
+            status_code=status.HTTP_200_OK,
+            headers={"X-Auth-User": current_user.email},
+        )
+
+    # Look up the app
+    stmt = select(App).where(App.slug == x_gk_app)
+    result = await db.execute(stmt)
+    app = result.scalar_one_or_none()
+
+    # App not registered - follow default policy
+    if not app:
+        if settings.default_app_access == "deny":
+            return Response(status_code=status.HTTP_403_FORBIDDEN)
+        # default_app_access == "allow"
+        return Response(
+            status_code=status.HTTP_200_OK,
+            headers={"X-Auth-User": current_user.email},
+        )
+
+    # App registered - check user access
+    access_stmt = select(UserAppAccess).where(
+        UserAppAccess.user_id == current_user.id,
+        UserAppAccess.app_id == app.id,
+    )
+    access_result = await db.execute(access_stmt)
+    access = access_result.scalar_one_or_none()
+
+    if not access:
+        return Response(status_code=status.HTTP_403_FORBIDDEN)
+
+    # User has access - return headers
+    headers = {"X-Auth-User": current_user.email}
+    if access.role:
+        headers["X-Auth-Role"] = access.role
+
+    return Response(status_code=status.HTTP_200_OK, headers=headers)
 
 
 @router.post(
@@ -320,6 +396,131 @@ async def signout(
 )
 async def get_me(current_user: CurrentUser) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+    responses={
+        200: {"description": "Profile updated"},
+        401: {"model": ErrorResponse, "description": "Not authenticated"},
+    },
+    summary="Update profile",
+    description="Update the current user's profile information.",
+)
+async def update_me(
+    data: ProfileUpdateRequest,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> UserResponse:
+    if data.name is not None:
+        current_user.name = data.name
+    await db.flush()
+    await db.refresh(current_user)
+    return UserResponse.model_validate(current_user)
+
+
+@router.get(
+    "/me/apps",
+    response_model=list[UserAppAccessInfo],
+    responses={
+        200: {"description": "List of apps user has access to"},
+        401: {"model": ErrorResponse, "description": "Not authenticated"},
+    },
+    summary="List my apps",
+    description="List all apps the current user has been granted access to.",
+)
+async def list_my_apps(
+    current_user: CurrentUser,
+    db: DbSession,
+) -> list[UserAppAccessInfo]:
+    stmt = (
+        select(UserAppAccess, App)
+        .join(App, UserAppAccess.app_id == App.id)
+        .where(UserAppAccess.user_id == current_user.id)
+        .order_by(App.name)
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return [
+        UserAppAccessInfo(
+            app_slug=app.slug,
+            app_name=app.name,
+            role=access.role,
+            granted_at=access.granted_at,
+        )
+        for access, app in rows
+    ]
+
+
+@router.post(
+    "/me/apps/{slug}/request",
+    response_model=MessageResponse,
+    responses={
+        200: {"description": "Access request submitted"},
+        400: {"model": ErrorResponse, "description": "Already have access or pending request"},
+        404: {"model": ErrorResponse, "description": "App not found"},
+        401: {"model": ErrorResponse, "description": "Not authenticated"},
+    },
+    summary="Request app access",
+    description="Request access to an app. Creates a pending request for admin review.",
+)
+async def request_app_access(
+    slug: str,
+    current_user: CurrentUser,
+    db: DbSession,
+    data: AccessRequestCreate | None = None,
+) -> MessageResponse:
+    # Find the app
+    stmt = select(App).where(App.slug == slug)
+    result = await db.execute(stmt)
+    app = result.scalar_one_or_none()
+
+    if not app:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="App not found.",
+        )
+
+    # Check if user already has access
+    access_stmt = select(UserAppAccess).where(
+        UserAppAccess.user_id == current_user.id,
+        UserAppAccess.app_id == app.id,
+    )
+    access_result = await db.execute(access_stmt)
+    if access_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You already have access to this app.",
+        )
+
+    # Check if there's already a pending request
+    pending_stmt = select(AppAccessRequest).where(
+        AppAccessRequest.user_id == current_user.id,
+        AppAccessRequest.app_id == app.id,
+        AppAccessRequest.status == AccessRequestStatus.PENDING,
+    )
+    pending_result = await db.execute(pending_stmt)
+    if pending_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You already have a pending request for this app.",
+        )
+
+    # Create the request
+    access_request = AppAccessRequest(
+        user_id=current_user.id,
+        app_id=app.id,
+        message=data.message if data else None,
+    )
+    db.add(access_request)
+    await db.flush()
+
+    return MessageResponse(
+        message="Access request submitted",
+        detail="Your request is pending admin review.",
+    )
 
 
 @router.delete(

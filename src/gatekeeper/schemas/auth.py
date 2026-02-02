@@ -119,6 +119,7 @@ class UserResponse(BaseModel):
 
     id: UUID = Field(..., description="Unique user identifier")
     email: str = Field(..., description="User's email address")
+    name: str | None = Field(None, description="User's display name")
     status: UserStatus = Field(..., description="User account status")
     is_admin: bool = Field(..., description="Whether user has admin privileges")
     is_seeded: bool = Field(..., description="Whether user is a seeded admin")
@@ -131,6 +132,7 @@ class UserResponse(BaseModel):
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "email": "user@example.com",
+                "name": "John Doe",
                 "status": "approved",
                 "is_admin": False,
                 "is_seeded": False,
@@ -138,6 +140,18 @@ class UserResponse(BaseModel):
                 "updated_at": "2024-01-01T00:00:00Z",
             }
         },
+    }
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Request to update user profile."""
+
+    name: str | None = Field(None, max_length=255, description="User's display name")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {"name": "John Doe"}
+        }
     }
 
 
@@ -208,6 +222,26 @@ class PasskeyInfo(BaseModel):
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "name": "Passkey",
                 "created_at": "2024-01-01T00:00:00Z",
+            }
+        }
+    }
+
+
+class UserAppAccessInfo(BaseModel):
+    """App access information for a user."""
+
+    app_slug: str = Field(..., description="App slug identifier")
+    app_name: str = Field(..., description="App display name")
+    role: str | None = Field(None, description="User's role in this app")
+    granted_at: datetime = Field(..., description="When access was granted")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "app_slug": "eng-docs",
+                "app_name": "Engineering Docs",
+                "role": "admin",
+                "granted_at": "2024-01-01T00:00:00Z",
             }
         }
     }

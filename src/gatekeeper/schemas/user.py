@@ -19,6 +19,7 @@ class UserRead(BaseModel):
 
     id: UUID = Field(..., description="Unique user identifier")
     email: str = Field(..., description="User's email address")
+    name: str | None = Field(None, description="User's display name")
     status: UserStatus = Field(..., description="User account status (pending, approved, rejected)")
     is_admin: bool = Field(..., description="Whether user has admin privileges")
     is_seeded: bool = Field(..., description="Whether user is a seeded admin")
@@ -31,6 +32,7 @@ class UserRead(BaseModel):
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "email": "user@example.com",
+                "name": "John Doe",
                 "status": "approved",
                 "is_admin": False,
                 "is_seeded": False,
@@ -44,5 +46,6 @@ class UserRead(BaseModel):
 class UserUpdate(BaseModel):
     """Schema for updating a user."""
 
+    name: str | None = Field(default=None, description="User's display name")
     status: UserStatus | None = Field(default=None, description="New user status")
     is_admin: bool | None = Field(default=None, description="Set admin privileges")
