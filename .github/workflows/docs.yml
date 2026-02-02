@@ -41,4 +41,4 @@ jobs:
         run: uv sync --frozen --group docs
 
       - name: Build docs
-        run: uv run sphinx-build -b html docs/source docs/_build/html -W --keep-going
+        run: uv run sphinx-build -b html -c docs docs/source docs/_build/html -W --keep-going

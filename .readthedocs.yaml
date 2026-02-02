@@ -12,5 +12,5 @@ build:
     - pip install uv>=0.9
     # Install the project and docs dependencies using uv
     - uv sync --group docs
-    # Build HTML documentation with Sphinx
-    - uv run sphinx-build -b html docs/source $READTHEDOCS_OUTPUT/html
+    # Build HTML documentation with Sphinx (-c specifies config dir)
+    - uv run sphinx-build -b html -c docs docs/source $READTHEDOCS_OUTPUT/html
