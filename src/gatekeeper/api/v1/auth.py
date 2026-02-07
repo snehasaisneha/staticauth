@@ -545,22 +545,31 @@ async def request_app_access(
     await db.flush()
 
     # For private apps, notify opted-in super-admins
+    # Wrap in try/except so notification failures don't affect the request
     if not app.is_public:
-        admin_stmt = select(User).where(
-            User.is_admin == True,  # noqa: E712
-            User.notify_private_app_requests == True,  # noqa: E712
-        )
-        admin_result = await db.execute(admin_stmt)
-        admins = admin_result.scalars().all()
+        try:
+            admin_stmt = select(User).where(
+                User.is_admin == True,  # noqa: E712
+                User.notify_private_app_requests == True,  # noqa: E712
+            )
+            admin_result = await db.execute(admin_stmt)
+            admins = admin_result.scalars().all()
 
-        email_service = EmailService(db=db)
-        for admin in admins:
-            await email_service.send_private_app_access_request_notification(
-                admin_email=admin.email,
-                requester_email=current_user.email,
-                requester_name=current_user.name,
-                app_name=app.name,
-                message=data.message if data else None,
+            email_service = EmailService(db=db)
+            for admin in admins:
+                await email_service.send_private_app_access_request_notification(
+                    admin_email=admin.email,
+                    requester_email=current_user.email,
+                    requester_name=current_user.name,
+                    app_name=app.name,
+                    message=data.message if data else None,
+                )
+        except Exception:
+            # Log but don't fail the request
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "Failed to send private app access request notifications"
             )
 
     return MessageResponse(
