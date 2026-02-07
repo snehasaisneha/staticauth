@@ -6,10 +6,11 @@ import { UserList } from './UserList';
 import { PendingRegistrations } from './PendingRegistrations';
 import { AppManagement } from './AppManagement';
 import { AddUserModal } from './AddUserModal';
+import { ApprovalsTab } from './ApprovalsTab';
 import { api } from '@/lib/api';
-import { UserPlus, AppWindow, Users, Clock } from 'lucide-react';
+import { UserPlus, AppWindow, Users, Clock, CheckCircle } from 'lucide-react';
 
-type TabType = 'users' | 'apps';
+type TabType = 'users' | 'apps' | 'approvals';
 
 export function AdminDashboard() {
   const [refreshKey, setRefreshKey] = React.useState(0);
@@ -20,18 +21,21 @@ export function AdminDashboard() {
   const [pendingCount, setPendingCount] = React.useState(0);
   const [totalUsers, setTotalUsers] = React.useState(0);
   const [totalApps, setTotalApps] = React.useState(0);
+  const [pendingAccessRequests, setPendingAccessRequests] = React.useState(0);
 
   React.useEffect(() => {
     async function fetchStats() {
       try {
-        const [pendingRes, usersRes, appsRes] = await Promise.all([
+        const [pendingRes, usersRes, appsRes, accessRequestsRes] = await Promise.all([
           api.admin.listPendingUsers(),
           api.admin.listUsers(1, 1),
           api.admin.listApps(),
+          api.admin.listAllAccessRequests(),
         ]);
         setPendingCount(pendingRes.total);
         setTotalUsers(usersRes.total);
         setTotalApps(appsRes.total);
+        setPendingAccessRequests(accessRequestsRes.length);
       } catch {
         // Silently fail
       }
@@ -57,7 +61,7 @@ export function AdminDashboard() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab('users')}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -96,6 +100,21 @@ export function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        <Card
+          className={`cursor-pointer hover:border-primary/50 transition-colors ${pendingAccessRequests > 0 ? 'border-blue-500/50' : ''}`}
+          onClick={() => setActiveTab('approvals')}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Access Requests</p>
+                <p className="text-2xl font-bold">{pendingAccessRequests}</p>
+              </div>
+              <CheckCircle className={`h-8 w-8 ${pendingAccessRequests > 0 ? 'text-blue-500' : 'text-muted-foreground/50'}`} />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tab Navigation */}
@@ -127,6 +146,22 @@ export function AdminDashboard() {
           >
             <AppWindow className="h-4 w-4" />
             Apps
+          </button>
+          <button
+            onClick={() => setActiveTab('approvals')}
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+              activeTab === 'approvals'
+                ? 'border-primary text-foreground font-medium'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <CheckCircle className="h-4 w-4" />
+            Approvals
+            {pendingAccessRequests > 0 && (
+              <Badge variant="secondary" className="ml-1 bg-blue-100 text-blue-700 text-xs">
+                {pendingAccessRequests}
+              </Badge>
+            )}
           </button>
         </div>
 
@@ -160,6 +195,12 @@ export function AdminDashboard() {
       {activeTab === 'apps' && (
         <div>
           <AppManagement onRefresh={handleRefresh} />
+        </div>
+      )}
+
+      {activeTab === 'approvals' && (
+        <div>
+          <ApprovalsTab onRefresh={handleRefresh} />
         </div>
       )}
     </div>

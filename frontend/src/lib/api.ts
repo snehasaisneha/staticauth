@@ -7,6 +7,7 @@ export interface User {
   status: 'pending' | 'approved' | 'rejected';
   is_admin: boolean;
   is_seeded: boolean;
+  notify_private_app_requests: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -153,7 +154,7 @@ export const api = {
 
     me: () => request<User>('/auth/me'),
 
-    updateProfile: (data: { name?: string }) =>
+    updateProfile: (data: { name?: string; notify_private_app_requests?: boolean }) =>
       request<User>('/auth/me', {
         method: 'PATCH',
         body: JSON.stringify(data),
@@ -298,6 +299,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+
+    listAllAccessRequests: () => request<AccessRequest[]>('/admin/requests'),
   },
 };
 

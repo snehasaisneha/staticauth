@@ -912,6 +912,44 @@ async def reject_access_request(
     return MessageResponse(message=f"Rejected access request from '{user.email}' for '{slug}'")
 
 
+@router.get(
+    "/requests",
+    response_model=list[AccessRequestRead],
+    summary="List all pending access requests",
+    description="List all pending access requests across all apps. Admin only.",
+)
+async def list_all_access_requests(
+    admin: AdminUser,
+    db: DbSession,
+) -> list[AccessRequestRead]:
+    """Get all pending access requests across all apps, sorted by created_at ascending."""
+    requests_stmt = (
+        select(AppAccessRequest, User, App)
+        .join(User, AppAccessRequest.user_id == User.id)
+        .join(App, AppAccessRequest.app_id == App.id)
+        .where(AppAccessRequest.status == AccessRequestStatus.PENDING)
+        .order_by(AppAccessRequest.created_at.asc())
+    )
+    result = await db.execute(requests_stmt)
+    rows = result.all()
+
+    return [
+        AccessRequestRead(
+            id=str(req.id),
+            user_email=user.email,
+            user_name=user.name,
+            app_slug=app.slug,
+            app_name=app.name,
+            message=req.message,
+            status=req.status,
+            reviewed_by=req.reviewed_by,
+            reviewed_at=req.reviewed_at,
+            created_at=req.created_at,
+        )
+        for req, user, app in rows
+    ]
+
+
 @router.post(
     "/users/grant-bulk",
     response_model=MessageResponse,

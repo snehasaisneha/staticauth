@@ -137,6 +137,9 @@ class ProfileUpdateRequest(BaseModel):
     """Request to update user profile."""
 
     name: str | None = Field(None, max_length=255, description="User's display name")
+    notify_private_app_requests: bool | None = Field(
+        None, description="Receive notifications for private app access requests"
+    )
 
     model_config = {"json_schema_extra": {"example": {"name": "John Doe"}}}
 

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Loader2, Check, Pencil, X } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 
@@ -24,6 +25,7 @@ function SettingsPageContent({ appName }: SettingsPageProps) {
   const [isSavingName, setIsSavingName] = React.useState(false);
   const [nameError, setNameError] = React.useState<string | null>(null);
   const [currentUser, setCurrentUser] = React.useState(user);
+  const [isSavingNotifications, setIsSavingNotifications] = React.useState(false);
 
   React.useEffect(() => {
     if (user) {
@@ -50,6 +52,19 @@ function SettingsPageContent({ appName }: SettingsPageProps) {
     setEditName(currentUser?.name || '');
     setIsEditingName(false);
     setNameError(null);
+  };
+
+  const handleToggleNotifications = async (enabled: boolean) => {
+    setIsSavingNotifications(true);
+    try {
+      const updatedUser = await api.auth.updateProfile({ notify_private_app_requests: enabled });
+      setCurrentUser(updatedUser);
+    } catch (err) {
+      // Revert on error - the switch will reflect the current state
+      console.error('Failed to update notification preferences:', err);
+    } finally {
+      setIsSavingNotifications(false);
+    }
   };
 
   if (authLoading) {
@@ -142,6 +157,31 @@ function SettingsPageContent({ appName }: SettingsPageProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Notification Settings Section - Super Admin Only */}
+          {currentUser.is_admin && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Notifications</CardTitle>
+                <CardDescription>Manage your notification preferences</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Private App Access Requests</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Receive email notifications when users request access to private apps
+                    </p>
+                  </div>
+                  <Switch
+                    checked={currentUser.notify_private_app_requests}
+                    onCheckedChange={handleToggleNotifications}
+                    disabled={isSavingNotifications}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Passkeys Section */}
           <PasskeyManager />

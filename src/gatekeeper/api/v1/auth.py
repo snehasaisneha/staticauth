@@ -420,6 +420,9 @@ async def update_me(
 ) -> UserResponse:
     if data.name is not None:
         current_user.name = data.name
+    # Only super-admins can toggle notification preferences
+    if data.notify_private_app_requests is not None and current_user.is_admin:
+        current_user.notify_private_app_requests = data.notify_private_app_requests
     await db.flush()
     await db.refresh(current_user)
     return UserResponse.model_validate(current_user)
@@ -484,12 +487,11 @@ async def list_my_apps(
     responses={
         200: {"description": "Access request submitted"},
         400: {"model": ErrorResponse, "description": "Already have access or pending request"},
-        403: {"model": ErrorResponse, "description": "App is not public"},
         404: {"model": ErrorResponse, "description": "App not found"},
         401: {"model": ErrorResponse, "description": "Not authenticated"},
     },
     summary="Request app access",
-    description="Request access to a public app. Creates a pending request for admin review.",
+    description="Request access to an app. Creates a pending request for admin review.",
 )
 async def request_app_access(
     slug: str,
@@ -506,13 +508,6 @@ async def request_app_access(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="App not found.",
-        )
-
-    # Check if app is public (users can only request access to public apps)
-    if not app.is_public:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This app is not available for access requests.",
         )
 
     # Check if user already has access
@@ -548,6 +543,25 @@ async def request_app_access(
     )
     db.add(access_request)
     await db.flush()
+
+    # For private apps, notify opted-in super-admins
+    if not app.is_public:
+        admin_stmt = select(User).where(
+            User.is_admin == True,  # noqa: E712
+            User.notify_private_app_requests == True,  # noqa: E712
+        )
+        admin_result = await db.execute(admin_stmt)
+        admins = admin_result.scalars().all()
+
+        email_service = EmailService(db=db)
+        for admin in admins:
+            await email_service.send_private_app_access_request_notification(
+                admin_email=admin.email,
+                requester_email=current_user.email,
+                requester_name=current_user.name,
+                app_name=app.name,
+                message=data.message if data else None,
+            )
 
     return MessageResponse(
         message="Access request submitted",
