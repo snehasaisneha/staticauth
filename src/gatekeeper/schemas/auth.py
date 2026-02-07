@@ -113,6 +113,9 @@ class UserResponse(BaseModel):
     status: UserStatus = Field(..., description="User account status")
     is_admin: bool = Field(..., description="Whether user has admin privileges")
     is_seeded: bool = Field(..., description="Whether user is a seeded admin")
+    notify_private_app_requests: bool = Field(
+        ..., description="Whether to receive notifications for private app access requests"
+    )
     created_at: datetime = Field(..., description="Account creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
@@ -126,6 +129,7 @@ class UserResponse(BaseModel):
                 "status": "approved",
                 "is_admin": False,
                 "is_seeded": False,
+                "notify_private_app_requests": False,
                 "created_at": "2024-01-01T00:00:00Z",
                 "updated_at": "2024-01-01T00:00:00Z",
             }
